@@ -68,9 +68,14 @@ Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
 - [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}`
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
+- [ ] (but it doesn't turn block ids into `\label{}` yet)
 - [ ] bibliographies - it would be great to have a way to pull references out of a `.bib` file
 - [ ] images - it should be possible to turn image links into something that connects to the filename
 - [ ] captions
 
 ## How to use
 Make sure your latex file includes the `soul` and `listings` packages, and off you go.
+
+## License
+
+This code is released under the MIT License
