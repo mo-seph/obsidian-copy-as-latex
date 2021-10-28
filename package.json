@@ -19,5 +19,12 @@
     "rollup": "^2.32.1",
     "tslib": "^2.2.0",
     "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^1.0.4",
+    "mdast-util-gfm": "^2.0.0",
+    "mdast-util-wiki-link": "^0.0.2",
+    "micromark-extension-gfm": "^2.0.0",
+    "micromark-extension-wiki-link": "^0.0.4"
   }
 }
