@@ -1,7 +1,7 @@
 {
 	"id": "copy-as-latex",
 	"name": "Copy as Latex",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "0.9.12",
 	"description": "Plugin to quickly copy markdown as Latex, with citations",
 	"author": "Dave Murray-Rust",
