@@ -8,10 +8,6 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-//import { clipboard } from 'electron'
-
-const electron = require('electron')
-const clipboard = electron.clipboard;
 
 
 export default class CopyAsLatexPlugin extends Plugin {
