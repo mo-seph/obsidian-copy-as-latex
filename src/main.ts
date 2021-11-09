@@ -13,17 +13,17 @@ import { Literal } from 'mdast';
 const electron = require('electron')
 const clipboard = electron.clipboard;
 
-interface MyPluginSettings {
+interface CopyAsLatexPluginSettings {
 	mySetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	mySetting: 'default'
 }
 
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings; 
+export default class CopyAsLatexPlugin extends Plugin {
+	settings: CopyAsLatexPluginSettings; 
 
 	async onload() {
 		//console.log('loading Copy as Latex');
@@ -57,7 +57,7 @@ export default class MyPlugin extends Plugin {
 			extensions: [syntax(),gfm()],
 			mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown()]
 		});
-		//console.log(ast);
+		console.log(ast);
 		const result = this.ASTtoString(ast)
 		console.log(result)
 		clipboard.writeText(result)
