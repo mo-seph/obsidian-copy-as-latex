@@ -12,6 +12,10 @@ import { Literal } from 'mdast';
 
 export default class CopyAsLatexPlugin extends Plugin {
 	//settings: CopyAsLatexPluginSettings; 
+	remarkSetup = {
+		extensions: [syntax(),gfm()],
+		mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown()]
+	}
 
 	async onload() {
 		console.log('loading Copy as Latex');
@@ -21,16 +25,13 @@ export default class CopyAsLatexPlugin extends Plugin {
 			name: 'Copy as Latex',
 			editorCallback: (editor, _) => this.markdownToLatex(editor)
 		});
-		//this.addSettingTab(new SampleSettingTab(this.app, this));
+		//this.addSettingTab(new CopyAsLatexSettingTab(this.app, this));
 	}
 
 	markdownToLatex(editor:Editor) {
 		let text = editor.getSelection();
 		//console.log(text);
-		const ast:Node = fromMarkdown(text, {
-			extensions: [syntax(),gfm()],
-			mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown()]
-		});
+		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		const result = ASTtoString(ast)
 		console.log(result)
 		navigator.clipboard.writeText(result)
@@ -142,7 +143,7 @@ const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	mySetting: 'default'
 }
 
-class SampleSettingTab extends PluginSettingTab {
+class CopyAsLatexSettingTab extends PluginSettingTab {
 	plugin: MyPlugin;
 
 	constructor(app: App, plugin: MyPlugin) {
