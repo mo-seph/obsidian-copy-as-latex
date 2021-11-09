@@ -13,43 +13,19 @@ import { Literal } from 'mdast';
 const electron = require('electron')
 const clipboard = electron.clipboard;
 
-/* No settings provided yet... */
-interface CopyAsLatexPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
-	mySetting: 'default'
-}
-
-
 
 export default class CopyAsLatexPlugin extends Plugin {
-	settings: CopyAsLatexPluginSettings; 
+	//settings: CopyAsLatexPluginSettings; 
 
 	async onload() {
 		console.log('loading Copy as Latex');
-		await this.loadSettings();
+		//await this.loadSettings();
 		this.addCommand({
 			id: 'copy-as-latex',
 			name: 'Copy as Latex',
 			editorCallback: (editor, _) => this.markdownToLatex(editor)
 		});
 		//this.addSettingTab(new SampleSettingTab(this.app, this));
-	}
-
-	/*
-	onunload() {
-		console.log('unloading plugin');
-	}
-	*/
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
 	}
 
 	markdownToLatex(editor:Editor) {
@@ -59,12 +35,27 @@ export default class CopyAsLatexPlugin extends Plugin {
 			extensions: [syntax(),gfm()],
 			mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown()]
 		});
-		console.log(ast);
 		const result = ASTtoString(ast)
 		console.log(result)
 		navigator.clipboard.writeText(result)
 		return true;
 	}
+
+	/*
+	onunload() {
+		console.log('unloading plugin');
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+	*/
+
+
 
 
 }
@@ -144,8 +135,17 @@ ${cd.value}
 
 
 
+/* No settings provided yet... */
 
 /*
+interface CopyAsLatexPluginSettings {
+	mySetting: string;
+}
+
+const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
+	mySetting: 'default'
+}
+
 class SampleSettingTab extends PluginSettingTab {
 	plugin: MyPlugin;
 
