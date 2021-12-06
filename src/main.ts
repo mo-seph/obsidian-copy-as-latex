@@ -20,7 +20,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 	async onload() {
 		console.log('loading Copy as Latex');
-		//await this.loadSettings();
+		await this.loadSettings();
 		this.addCommand({
 			id: 'copy-as-latex',
 			name: 'Copy as Latex',
@@ -31,11 +31,11 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 	markdownToLatex(editor:Editor) {
 		let text = editor.getSelection();
-		//console.log(text);
+		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
-		console.log(ast)
+		if( this.settings.logOutput ) {console.log(ast);}
 		const result = ASTtoString(ast)
-		console.log(result)
+		if( this.settings.logOutput ) {console.log(result);}
 		navigator.clipboard.writeText(result)
 		return true;
 	}
@@ -80,8 +80,8 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', {text: 'Settings for Copy as Latex'});
 
 		new Setting(containerEl)
-		.setName('Replace selection')
-		.setDesc('Should the current editor selection be replaced with a link to the title of the new Note?')
+		.setName('Log Output')
+		.setDesc('Should the plugin log output to the Console - mostly just for debugging')
 		.addToggle(toggle => toggle
 			.setValue(this.plugin.settings.logOutput)
 			.onChange(async (value) => {
