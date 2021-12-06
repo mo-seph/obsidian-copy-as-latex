@@ -8,26 +8,27 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
+import CopyAsLatexPluginSettings from './main';
 
 // Conversions go from a Node with a certain amount of indentation to a string
-type Convert = (a:Node,indent:number) => string
+type Convert = (a:Node,settings:CopyAsLatexPluginSettings,indent:number) => string
 
 /*
  * Overall function to carry out the conversion
  */
-export function ASTtoString(input:Node,indent:number=0) : string {
+export function ASTtoString(input:Node,settings:CopyAsLatexPluginSettings,indent:number=0) : string {
 	var t = input.type;
 
 
 	const transforms : { [key:string] : Convert } = {
 		'root': wrapper("\n",""),
 		'paragraph': wrapper("","\n"),
-		'emphasis': (a:Node) => {return "\\emph{" + wrapper("","")(a) + "}"},
-		'strong': (a:Node) => {return "\\textbf{" + wrapper("","")(a) + "}"},
-		'delete': (a:Node) => {return "\\st{" + wrapper("","")(a) + "}"},
-		'footnote': (a:Node) => {return "\\footnote{" + wrapper("","")(a) + "}"},
+		'emphasis': (a:Node) => {return "\\emph{" + wrapper("","")(a,settings) + "}"},
+		'strong': (a:Node) => {return "\\textbf{" + wrapper("","")(a,settings) + "}"},
+		'delete': (a:Node) => {return "\\st{" + wrapper("","")(a,settings) + "}"},
+		'footnote': (a:Node) => {return "\\footnote{" + wrapper("","")(a,settings) + "}"},
 		'list' : list,
-		'listItem': (a:Node) => {return "\t".repeat(indent) + "\\item " + wrapper("","")(a,indent) },
+		'listItem': (a:Node) => {return "\t".repeat(indent) + "\\item " + wrapper("","")(a,settings,indent) },
 		'heading': heading,
 		'wikiLink': internalLink,
 		'link': externalLink,
@@ -35,7 +36,7 @@ export function ASTtoString(input:Node,indent:number=0) : string {
 		'inlineCode': inlineCode
 	}
 	const f:Convert = transforms[input.type] || defaultC
-	const trans = f(input,indent)
+	const trans = f(input,settings,indent)
 	return   trans
 }
 
@@ -43,39 +44,39 @@ export function ASTtoString(input:Node,indent:number=0) : string {
  * Individual functions to convert elements
  */
 
-const defaultC : Convert = (a:Node,indent:number=0) => {return (a as Literal).value};
-const wrapper = (jn:string,aft:string) => (a:Node,indent:number=0) => {return (
-	(a as Parent).children.map((c) => ASTtoString(c,indent)).join(jn)) + aft};
-const heading = (a:Node,indent:number=0) => {
+const defaultC : Convert = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {return (a as Literal).value};
+const wrapper = (jn:string,aft:string) => (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {return (
+	(a as Parent).children.map((c) => ASTtoString(c,settings,indent)).join(jn)) + aft};
+const heading = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const h = a as Heading
 	var sec = "section"
 	if( h.depth == 2 ) sec = "subsection"
 	if( h.depth == 3 ) sec = "subsubsection"
-	return "\\" + sec + "{" + ASTtoString((a as Parent).children[0]) + "}\n"
+	return "\\" + sec + "{" + ASTtoString((a as Parent).children[0],settings) + "}\n"
 }
 
-const list = (a:Node,indent:number=0) => {
+const list = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const h = a as List
 	var sec = h.ordered ? "enumerate" : "itemize"
 	return "\t".repeat(indent) + "\\begin{" + sec + "}\n" + 
-		wrapper("","")(a,indent+1) +
+		wrapper("","")(a,settings,indent+1) +
 		"\t".repeat(indent) + "\\end{" + sec + "}\n"
 }
-const internalLink = (a:Node,indent:number=0) => {
+const internalLink = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const h = a as wikiLink
 	const url:string = h.value
 	if(url.startsWith("@") ) { return "\\cite{" + url.substring(1) + "}" }
 	if(url.startsWith("^") ) { return "\\ref{" + url.substring(1) + "}" }
 	return url 
 }
-const externalLink = (a:Node,indent:number=0) => {
+const externalLink = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const l = a as Link
 	console.log("Got a link!")
 	console.log(a)
 	return "\\url{" + l.url + "}"
 }
 
-const codeBlock = (a:Node,indent:number=0) => {
+const codeBlock = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const cd = a as Code
 	return `\\begin{lstlisting}[language=${cd.lang}]
 ${cd.value}
@@ -83,7 +84,7 @@ ${cd.value}
 `
 }
 
-const inlineCode = (a:Node,indent:number=0) => {
+const inlineCode = (a:Node,settings:CopyAsLatexPluginSettings,indent:number=0) => {
 	const cd = a as InlineCode
 	return `\\lstinline{${cd.value}}`
 }

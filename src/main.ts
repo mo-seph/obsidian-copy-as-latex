@@ -34,7 +34,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		if( this.settings.logOutput ) {console.log(ast);}
-		const result = ASTtoString(ast)
+		const result = ASTtoString(ast,this.settings)
 		if( this.settings.logOutput ) {console.log(result);}
 		navigator.clipboard.writeText(result)
 		return true;
@@ -58,10 +58,14 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 interface CopyAsLatexPluginSettings {
 	logOutput: boolean;
+	inlineDelimiter:string;
+	mintedListings: boolean;
 }
 
 const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
-	logOutput: false
+	logOutput: false,
+	inlineDelimiter:"",
+	mintedListings: false
 }
 
 class CopyAsLatexSettingTab extends PluginSettingTab {
@@ -86,6 +90,24 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 			.setValue(this.plugin.settings.logOutput)
 			.onChange(async (value) => {
 				this.plugin.settings.logOutput = value;
+				await this.plugin.saveSettings();
+			}));
+		new Setting(containerEl)
+		.setName('Minted Output')
+		.setDesc('Use the minted package for code listings?')
+		.addToggle(toggle => toggle
+			.setValue(this.plugin.settings.mintedListings)
+			.onChange(async (value) => {
+				this.plugin.settings.mintedListings = value;
+				await this.plugin.saveSettings();
+			}));		
+		new Setting(containerEl)
+		.setName('Inline delimiters')
+		.setDesc('What delimiters to use for inline lstlistings? Default is curly braces ')
+		.addText(text => text
+			.setValue(this.plugin.settings.inlineDelimiter)
+			.onChange(async (value) => {
+				this.plugin.settings.inlineDelimiter = value;
 				await this.plugin.saveSettings();
 			}));
 
