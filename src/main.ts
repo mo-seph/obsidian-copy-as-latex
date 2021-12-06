@@ -92,7 +92,7 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 			}));
 		new Setting(containerEl)
 		.setName('Minted Output')
-		.setDesc('Use the minted package for code listings?')
+		.setDesc('Use the minted package for code listings? (Note: - not used for inline code at the moment)')
 		.addToggle(toggle => toggle
 			.setValue(this.plugin.settings.mintedListings)
 			.onChange(async (value) => {
