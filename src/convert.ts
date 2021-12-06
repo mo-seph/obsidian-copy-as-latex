@@ -6,7 +6,7 @@ import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
-import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
+import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
 
 // Conversions go from a Node with a certain amount of indentation to a string
@@ -31,7 +31,8 @@ export function ASTtoString(input:Node,indent:number=0) : string {
 		'heading': heading,
 		'wikiLink': internalLink,
 		'link': externalLink,
-		'code': code
+		'code': codeBlock,
+		'inlineCode': inlineCode
 	}
 	const f:Convert = transforms[input.type] || defaultC
 	const trans = f(input,indent)
@@ -74,11 +75,16 @@ const externalLink = (a:Node,indent:number=0) => {
 	return "\\url{" + l.url + "}"
 }
 
-const code = (a:Node,indent:number=0) => {
+const codeBlock = (a:Node,indent:number=0) => {
 	const cd = a as Code
 	return `\\begin{lstlisting}[language=${cd.lang}]
 ${cd.value}
 \\end{lstlisting}
 `
+}
+
+const inlineCode = (a:Node,indent:number=0) => {
+	const cd = a as InlineCode
+	return `\\lstinline{${cd.value}}`
 }
 
