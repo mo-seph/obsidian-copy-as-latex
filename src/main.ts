@@ -8,7 +8,7 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-import {ASTtoString} from './convert'
+import {ASTtoString,ConversionSettings} from './convert'
 
 
 export default class CopyAsLatexPlugin extends Plugin {
@@ -56,10 +56,8 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 /* No settings provided yet... */
 
-interface CopyAsLatexPluginSettings {
+export interface CopyAsLatexPluginSettings extends ConversionSettings {
 	logOutput: boolean;
-	inlineDelimiter:string;
-	mintedListings: boolean;
 }
 
 const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
