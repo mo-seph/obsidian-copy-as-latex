@@ -57,11 +57,11 @@ export default class CopyAsLatexPlugin extends Plugin {
 /* No settings provided yet... */
 
 interface CopyAsLatexPluginSettings {
-	mySetting: string;
+	logOutput: boolean;
 }
 
 const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
-	mySetting: 'default'
+	logOutput: false
 }
 
 class CopyAsLatexSettingTab extends PluginSettingTab {
@@ -77,18 +77,17 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
+		containerEl.createEl('h2', {text: 'Settings for Copy as Latex'});
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		.setName('Replace selection')
+		.setDesc('Should the current editor selection be replaced with a link to the title of the new Note?')
+		.addToggle(toggle => toggle
+			.setValue(this.plugin.settings.logOutput)
+			.onChange(async (value) => {
+				this.plugin.settings.logOutput = value;
+				await this.plugin.saveSettings();
+			}));
+
 	}
 }
