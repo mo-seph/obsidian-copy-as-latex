@@ -1,4 +1,4 @@
-import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, EditorPosition } from 'obsidian';
 import {fromMarkdown} from 'mdast-util-from-markdown'
 
 import { syntax } from 'micromark-extension-wiki-link'
@@ -31,6 +31,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 	markdownToLatex(editor:Editor) {
 		let text = editor.getSelection();
+		if(text.length == 0 && this.settings.copyWhole) text = editor.getRange({line:0,ch:0},{line:(editor.lastLine()+1),ch:0})
 		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		if( this.settings.logOutput ) {console.log(ast);}
@@ -58,10 +59,12 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 export interface CopyAsLatexPluginSettings extends ConversionSettings {
 	logOutput: boolean;
+	copyWhole: boolean;
 }
 
 const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	logOutput: false,
+	copyWhole: true,
 	inlineDelimiter:"",
 	mintedListings: false
 }
@@ -106,6 +109,15 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 			.setValue(this.plugin.settings.inlineDelimiter)
 			.onChange(async (value) => {
 				this.plugin.settings.inlineDelimiter = value;
+				await this.plugin.saveSettings();
+			}));
+		new Setting(containerEl)
+		.setName('Copy whole note')
+		.setDesc('If nothing is selected, should the plugin copy the whole note as latex?')
+		.addToggle(toggle => toggle
+			.setValue(this.plugin.settings.copyWhole)
+			.onChange(async (value) => {
+				this.plugin.settings.copyWhole = value;
 				await this.plugin.saveSettings();
 			}));
 
