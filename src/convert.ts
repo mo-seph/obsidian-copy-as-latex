@@ -12,15 +12,20 @@ import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-
 import { Literal } from 'mdast';
 
 export type citeType = "basic" | "autocite" | "parencite"
+
 export interface ConversionSettings {
 	inlineDelimiter:string;
 	mintedListings: boolean;
-	citeType:citeType;
+	citeType: citeType
+	citeTemplate:string;
+	experimentalCitations:boolean;
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
 
 const labelMatch = /\^([a-zA-Z0-9-_:]*)\s*$/
+const preCiteMatch = /(.*)\(([^)]*?)\s*$/
+const postCiteMatch = /^(\s)*([^(]*?)\)(.*)/
 /*
  * Overall function to carry out the conversion
  */
@@ -56,7 +61,7 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 	const v = (a as Literal).value
 
 	const lm = labelMatch.exec(v)
-	if( lm && lm.length > 0 ) return `\\label{${lm[0]}}`
+	if( lm && lm.length > 0 ) return `\\label{${lm[1]}}`
 	return v
 };
 const wrapper = (jn:string,aft:string) => (a:Node,settings:ConversionSettings,indent:number=0) => {return (
@@ -80,9 +85,21 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const h = a as wikiLink
 	const url:string = h.value
 	if(url.startsWith("@") ) { 
-		if(settings.citeType == "basic") return "\\cite{" + url.substring(1) + "}" ;
-		else if(settings.citeType == "autocite") return "\\autocite{" + url.substring(1) + "}" 
-		else if(settings.citeType == "parencite") return "\\parencite{" + url.substring(1) + "}" 
+		if( settings.experimentalCitations ) {
+			const pre = (h as any).pre ? (h as any).pre : null
+			const post = (h as any).post ? (h as any).post : null
+			const id = url.substring(1)
+			let citation = settings.citeTemplate
+			citation = citation.replace(/{{id}}/,id)
+			citation = citation.replace(/{{([^}])pre([^{])}}/,pre ? `$1${pre}$2` : "")
+			citation = citation.replace(/{{([^}])post([^{])}}/,post ? `$1${post}$2` : "")
+			return citation
+		}
+		else {
+			if(settings.citeType == "basic") return "\\cite{" + url.substring(1) + "}" ;
+			else if(settings.citeType == "autocite") return "\\autocite{" + url.substring(1) + "}" 
+			else if(settings.citeType == "parencite") return "\\parencite{" + url.substring(1) + "}" 
+		}
 	}
 	if(url.startsWith("^") ) { return "\\ref{" + url.substring(1) + "}" }
 	return url 
@@ -115,3 +132,40 @@ const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	return `\\lstinline{${cd.value}}`
 }
 
+
+export function preprocessAST(input:any) {
+	// instanceof was being funny - should be input instanceof Parent
+	if( (input as any).children )  {
+		const children = (input as Parent).children
+		children.forEach( (e,i) => {
+			const v = [null,e,null]
+			if(i > 0 ) v[0] = children[i-1]
+			if(i < children.length - 1 ) v[2] = children[i+1]
+			modifyAST(v)
+		})
+		children.forEach(c => preprocessAST(c))
+	}
+
+}
+
+export function modifyAST(input:Node[]) {
+	// For some reason, the type system is being hinky here - doesn't think wikiLink is part of type
+	if( input[1] && (input[1].type as string === "wikiLink" ) ) {
+		if( input[0].type === "text") {
+			const i = (input[0] as Literal)
+			const m = i.value.match(preCiteMatch)
+			if(m) {
+				i.value = m[1];
+				(input[1] as any).pre = m[2]
+			}
+		}
+		if( input[2].type === "text") {
+			const i = (input[2] as Literal)
+			const m = i.value.match(postCiteMatch)
+			if(m) {
+				i.value = m[3];
+				(input[1] as any).post = m[2]
+			}
+		}
+	}
+}

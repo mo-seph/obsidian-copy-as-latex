@@ -68,13 +68,17 @@ Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
 - [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}` (or `\autocite{}` depending on settings)
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
-- [ ] (but it doesn't turn block ids into `\label{}` yet)
+- [X] And turns block ids into `\label{}` elements
 - [ ] bibliographies - it would be great to have a way to pull references out of a `.bib` file
 - [ ] images - it should be possible to turn image links into something that connects to the filename
 - [ ] captions
 
+
 ## How to use
 Make sure your latex file includes the `soul` and `listings` packages, and off you go.
+
+## Experiemental
+- Citations are fine if they are simple, but quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. Currently trying an addition so that extra information can be put in parentheses, i.e. `here is a (e.g. [[@example]] p.22)`. This may change, but it currently grabs `pre` and `post` - the bits before and after the link, without spaces. These is then templated into the right form for `\cite` or `\autocite` with a user definable template, where `{{[pre]}}` means "use the value for `pre`, and if it is there, keep the square brackets; if it is not, get rid of them - so with `\autocite{{(pre)}}{{[post]}}{{{id}}}` and ` (e.g. [[@author2021Paper]] p.22)`, it produces `\autocite(e.g.)[p.22]{author2021Paper}`
 
 ## License
 

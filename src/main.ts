@@ -10,7 +10,7 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-import {ASTtoString,citeType,ConversionSettings} from './convert'
+import {ASTtoString,ConversionSettings, preprocessAST,citeType} from './convert'
 
 
 export default class CopyAsLatexPlugin extends Plugin {
@@ -37,6 +37,8 @@ export default class CopyAsLatexPlugin extends Plugin {
 		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		if( this.settings.logOutput ) {console.log(ast);}
+		if( this.settings.experimentalCitations ) preprocessAST(ast)
+		if( this.settings.logOutput ) {console.log("New AST:",ast);}
 		const result = ASTtoString(ast,this.settings)
 		if( this.settings.logOutput ) {console.log(result);}
 		navigator.clipboard.writeText(result)
@@ -69,7 +71,9 @@ const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	copyWhole: true,
 	inlineDelimiter:"",
 	mintedListings: false,
-	citeType:"autocite"
+	experimentalCitations:false,
+	citeType : 'autocite',
+	citeTemplate:"\\cite{{[pre]}}{{[post]}}{{{id}}}"
 }
 
 class CopyAsLatexSettingTab extends PluginSettingTab {
@@ -138,6 +142,24 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 				this.plugin.settings.copyWhole = value;
 				await this.plugin.saveSettings();
 			}));
-
+		new Setting(containerEl)
+		.setName('Experimental Citation parsing')
+		.setDesc('! Danger - may not work - tries to do some clever parsing of text for complex citations. Overrides citation type above')
+		.addToggle(toggle => toggle
+			.setValue(this.plugin.settings.experimentalCitations)
+			.onChange(async (value) => {
+				this.plugin.settings.experimentalCitations = value;
+				await this.plugin.saveSettings();
+			}));
+		new Setting(containerEl)
+		.setName('Experimental Citation template')
+		.setDesc('! Template for experimental citations.')
+		.addText(text => text
+			.setValue(this.plugin.settings.citeTemplate)
+			.onChange(async (value) => {
+				this.plugin.settings.citeTemplate = value;
+				await this.plugin.saveSettings();
+			}));
+		containerEl.createDiv({text:'Example citation templates would be: \n"\\cite{{[pre]}}{{[post]}}{{{id}}}" for natbib, \n"\\autocite{{(pre)}}{{[post]}}{{{id}}}" '})
 	}
 }
