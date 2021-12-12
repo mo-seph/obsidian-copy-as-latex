@@ -91,8 +91,8 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 			const id = url.substring(1)
 			let citation = settings.citeTemplate
 			citation = citation.replace(/{{id}}/,id)
-			citation = citation.replace(/{{([^}])pre([^{])}}/,pre ? `$1${pre}$2` : "")
-			citation = citation.replace(/{{([^}])post([^{])}}/,post ? `$1${post}$2` : "")
+			citation = citation.replace(/{{([^}]?)pre([^{]?)}}/,pre ? `$1${pre}$2` : "")
+			citation = citation.replace(/{{([^}]?)post([^{]?)}}/,post ? `$1${post}$2` : "")
 			return citation
 		}
 		else {
