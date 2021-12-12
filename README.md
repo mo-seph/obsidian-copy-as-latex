@@ -66,7 +66,7 @@ Text features:
 
 Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
-- [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}`
+- [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}` (or `\autocite{}` depending on settings)
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
 - [ ] (but it doesn't turn block ids into `\label{}` yet)
 - [ ] bibliographies - it would be great to have a way to pull references out of a `.bib` file

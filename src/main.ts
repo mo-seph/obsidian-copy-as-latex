@@ -10,7 +10,7 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-import {ASTtoString,ConversionSettings} from './convert'
+import {ASTtoString,citeType,ConversionSettings} from './convert'
 
 
 export default class CopyAsLatexPlugin extends Plugin {
@@ -68,7 +68,8 @@ const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	logOutput: false,
 	copyWhole: true,
 	inlineDelimiter:"",
-	mintedListings: false
+	mintedListings: false,
+	citeType:"autocite"
 }
 
 class CopyAsLatexSettingTab extends PluginSettingTab {
@@ -95,6 +96,21 @@ class CopyAsLatexSettingTab extends PluginSettingTab {
 				this.plugin.settings.logOutput = value;
 				await this.plugin.saveSettings();
 			}));
+		const options : Record<citeType,string>  = {
+			"basic":"Basic - \\cite{@foo}",
+			"autocite":"Autocite - \\autocite{@foo}",
+			"parencite":"Paren Cite - \\parencite{@foo}",
+		}
+		new Setting(containerEl)
+		.setName('Citation type')
+		.setDesc('What command to use for citations?')
+		.addDropdown(dropdown => dropdown
+			.addOptions(options)
+			.setValue(this.plugin.settings.citeType)
+			.onChange(async (value:citeType) => {
+				this.plugin.settings.citeType = value;
+				await this.plugin.saveSettings();
+			}));	
 		new Setting(containerEl)
 		.setName('Minted Output')
 		.setDesc('Use the minted package for code listings? (Note: - not used for inline code at the moment)')
