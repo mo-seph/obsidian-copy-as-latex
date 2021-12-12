@@ -56,7 +56,6 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 	const v = (a as Literal).value
 
 	const lm = labelMatch.exec(v)
-	console.log("Label match: ",lm)
 	if( lm && lm.length > 0 ) return `\\label{${lm[0]}}`
 	return v
 };
@@ -81,7 +80,6 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const h = a as wikiLink
 	const url:string = h.value
 	if(url.startsWith("@") ) { 
-		console.log("Cite Type",settings.citeType)
 		if(settings.citeType == "basic") return "\\cite{" + url.substring(1) + "}" ;
 		else if(settings.citeType == "autocite") return "\\autocite{" + url.substring(1) + "}" 
 		else if(settings.citeType == "parencite") return "\\parencite{" + url.substring(1) + "}" 
@@ -91,8 +89,6 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 }
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
-	console.log("Got a link!")
-	console.log(a)
 	return "\\url{" + l.url + "}"
 }
 
