@@ -1,7 +1,9 @@
 import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, EditorPosition } from 'obsidian';
 import {fromMarkdown} from 'mdast-util-from-markdown'
 
+// @ts-ignore - not sure how to build a proper typescript def yet
 import { syntax } from 'micromark-extension-wiki-link'
+// @ts-ignore - not sure how to build a proper typescript def yet
 import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
