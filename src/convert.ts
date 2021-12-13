@@ -151,7 +151,7 @@ export function preprocessAST(input:any) {
 export function modifyAST(input:Node[]) {
 	// For some reason, the type system is being hinky here - doesn't think wikiLink is part of type
 	if( input[1] && (input[1].type as string === "wikiLink" ) ) {
-		if( input[0].type === "text") {
+		if( input[0] && input[0].type === "text") {
 			const i = (input[0] as Literal)
 			const m = i.value.match(preCiteMatch)
 			if(m) {
@@ -159,7 +159,7 @@ export function modifyAST(input:Node[]) {
 				(input[1] as any).pre = m[2]
 			}
 		}
-		if( input[2].type === "text") {
+		if( input[2] && input[2].type === "text") {
 			const i = (input[2] as Literal)
 			const m = i.value.match(postCiteMatch)
 			if(m) {
