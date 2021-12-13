@@ -24,8 +24,12 @@ export interface ConversionSettings {
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
 
 const labelMatch = /\^([a-zA-Z0-9-_:]*)\s*$/
-const preCiteMatch = /(.*)\(([^)]*?)\s*$/
-const postCiteMatch = /^(\s)*([^(]*?)\)(.*)/
+/* Match: 
+ * - some stuff
+ * '(' followed by any amount of stuff that is not '(', to get everything inside the last paren
+ */
+const preCiteMatch = /^(.*)\(([^(]*)$/s
+const postCiteMatch = /^([^)]*)\)(.*)$/s
 /*
  * Overall function to carry out the conversion
  */
@@ -151,10 +155,12 @@ export function preprocessAST(input:any) {
 export function modifyAST(input:Node[]) {
 	// For some reason, the type system is being hinky here - doesn't think wikiLink is part of type
 	if( input[1] && (input[1].type as string === "wikiLink" ) ) {
+		//console.log(`Working with: '${input[0] ? (input[0] as any).value : "<none>"}' : "${(input[1] as any).value}" : "${input[2] ? (input[2] as any).value : "<none>"}"`)
 		if( input[0] && input[0].type === "text") {
 			const i = (input[0] as Literal)
 			const m = i.value.match(preCiteMatch)
 			if(m) {
+				//console.log(`Pre match: '${m[1]}':'${m[2]}'`)
 				i.value = m[1];
 				(input[1] as any).pre = m[2]
 			}
@@ -163,8 +169,9 @@ export function modifyAST(input:Node[]) {
 			const i = (input[2] as Literal)
 			const m = i.value.match(postCiteMatch)
 			if(m) {
-				i.value = m[3];
-				(input[1] as any).post = m[2]
+				//console.log(`Post match: '${m[1]}':'${m[2]}'`)
+				i.value = m[2];
+				(input[1] as any).post = m[1]
 			}
 		}
 	}
