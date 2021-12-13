@@ -162,7 +162,7 @@ export function modifyAST(input:Node[]) {
 			if(m) {
 				//console.log(`Pre match: '${m[1]}':'${m[2]}'`)
 				i.value = m[1];
-				(input[1] as any).pre = m[2]
+				(input[1] as any).pre = m[2].trim()
 			}
 		}
 		if( input[2] && input[2].type === "text") {
@@ -171,7 +171,7 @@ export function modifyAST(input:Node[]) {
 			if(m) {
 				//console.log(`Post match: '${m[1]}':'${m[2]}'`)
 				i.value = m[2];
-				(input[1] as any).post = m[1]
+				(input[1] as any).post = m[1].trim()
 			}
 		}
 	}
