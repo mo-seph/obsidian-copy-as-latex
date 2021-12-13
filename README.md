@@ -79,6 +79,10 @@ Make sure your latex file includes the `soul` and `listings` packages, and off y
 
 ## Experiemental
 - Citations are fine if they are simple, but quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. Currently trying an addition so that extra information can be put in parentheses, i.e. `here is a (e.g. [[@example]] p.22)`. This may change, but it currently grabs `pre` and `post` - the bits before and after the link, without spaces. These is then templated into the right form for `\cite` or `\autocite` with a user definable template, where `{{[pre]}}` means "use the value for `pre`, and if it is there, keep the square brackets; if it is not, get rid of them - so with `\autocite{{(pre)}}{{[post]}}{{{id}}}` and ` (e.g. [[@author2021Paper]] p.22)`, it produces `\autocite(e.g.)[p.22]{author2021Paper}`
+- New command: Copy missing citations. To use it:
+	- Set your main bibliography file in the config (source)
+	- Copy the current bibliography of your paper to the clipboard (target)
+	- Run Copy Missing Citations. It will look for all the citation keys in the Markdown doc, and any that are present in the source and missing from the target will be copied to the clipboard.
 
 ## License
 

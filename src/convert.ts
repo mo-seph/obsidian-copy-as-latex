@@ -136,6 +136,21 @@ const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	return `\\lstinline{${cd.value}}`
 }
 
+export function findAll(input:Node,cond:{(i:Node): boolean}):Node[] {
+	const r:Node[] = cond(input) ? [input] : []
+	if( (input as any ).children )
+		(input as Parent ).children.forEach(n => r.push(...findAll(n,cond)))
+	return r
+}
+
+export function findCitations(ast:Node):Set<string> {
+	const citationElements = findAll(ast,(n:Node) => {
+		if( (n.type as string) != 'wikiLink') return false
+		return (n as Literal).value.startsWith("@") 
+	})
+	const keyList = citationElements.map((n) => (n as Literal).value.replace("@",""))
+	return new Set<string>(keyList)
+}
 
 export function preprocessAST(input:any) {
 	// instanceof was being funny - should be input instanceof Parent
@@ -151,6 +166,7 @@ export function preprocessAST(input:any) {
 	}
 
 }
+
 
 export function modifyAST(input:Node[]) {
 	// For some reason, the type system is being hinky here - doesn't think wikiLink is part of type
