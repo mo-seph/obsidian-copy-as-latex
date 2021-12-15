@@ -23,8 +23,10 @@
   "dependencies": {
     "mdast-util-from-markdown": "^1.0.4",
     "mdast-util-gfm": "^2.0.0",
+    "mdast-util-math": "^2.0.0",
     "mdast-util-wiki-link": "^0.0.2",
     "micromark-extension-gfm": "^2.0.0",
+    "micromark-extension-math": "^2.0.2",
     "micromark-extension-wiki-link": "^0.0.4"
   }
 }

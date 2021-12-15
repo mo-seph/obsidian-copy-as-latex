@@ -63,13 +63,14 @@ Text features:
 - [X] Automatic external links (except Obsidian is more generous than the GFM parser)
 - [ ] Footnotes (It only makes sense to use inline foonotes, which Obsidian supports, but not the GFM parser)
 - [ ] Highlight (again, not in GFM)
+- [X] Special characters: `& % $ # _ { } ~ ^ \` 
 
 Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
 - [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}` (or `\autocite{}` depending on settings)
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
 - [X] And turns block ids into `\label{}` elements
-- [ ] bibliographies - it would be great to have a way to pull references out of a `.bib` file
+- [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
 - [ ] images - it should be possible to turn image links into something that connects to the filename
 - [ ] captions
 
@@ -83,6 +84,13 @@ Make sure your latex file includes the `soul` and `listings` packages, and off y
 	- Set your main bibliography file in the config (source)
 	- Copy the current bibliography of your paper to the clipboard (target)
 	- Run Copy Missing Citations. It will look for all the citation keys in the Markdown doc, and any that are present in the source and missing from the target will be copied to the clipboard.
+
+# Development
+
+## Changelog
+
+### 1.8
+- Escape special characters
 
 ## License
 

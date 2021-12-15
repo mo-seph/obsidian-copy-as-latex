@@ -50,7 +50,9 @@ export function ASTtoString(input:Node,settings:ConversionSettings,indent:number
 		'wikiLink': internalLink,
 		'link': externalLink,
 		'code': codeBlock,
-		'inlineCode': inlineCode
+		'inlineCode': inlineCode,
+		'inlineMath': inlineMath,
+		'math': displayMath,
 	}
 	const f:Convert = transforms[input.type] || defaultC
 	const trans = f(input,settings,indent)
@@ -66,8 +68,24 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 
 	const lm = labelMatch.exec(v)
 	if( lm && lm.length > 0 ) return `\\label{${lm[1]}}`
-	return v
+	return escapeLatex(v)
 };
+
+function escapeLatex(input:string) : string {
+	var v = input
+	// Characters that need escaping in free text:
+	// & % $ # _ { } ~ ^ \
+	// \& \% \$ \# \_ \{ \}
+	v = v.replace(/\\/g,"\\textbackslash")
+	v = v.replace(/([{}])/g,"\\$1")
+	v = v.replace(/\\textbackslash/g,"\\textbackslash{}")
+	v = v.replace(/([&%$#_])/g,"\\$1")
+	v = v.replace(/~/g,"\\textasciitilde{}")
+	v = v.replace(/\^/g,"\\textasciicircum{}")
+
+	return v
+}
+
 const wrapper = (jn:string,aft:string) => (a:Node,settings:ConversionSettings,indent:number=0) => {return (
 	(a as Parent).children.map((c) => ASTtoString(c,settings,indent)).join(jn)) + aft};
 const heading = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -134,6 +152,23 @@ const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
 		return `\\lstinline${d}${cd.value}${d}`
 	}
 	return `\\lstinline{${cd.value}}`
+}
+
+// Make sure not to escape anything in the math block
+// (and add back in the dollar signs)
+const inlineMath = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	const v = (a as Literal).value
+	// This is a wierd hack - the mdast parser doesn't differentiate between block
+	// and inline, so we have to guess by the difference between the length of the
+	// value string and the amount of characters it covers in the source
+	const difference = a.position.end.offset - a.position.start.offset - v.length
+	if( difference > 2 ) return `$$${v}$$`
+	else return `$${v}$`
+}
+
+const displayMath = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	const v = (a as Literal).value
+	return `$$\n${v}\n$$`
 }
 
 export function findAll(input:Node,cond:{(i:Node): boolean}):Node[] {

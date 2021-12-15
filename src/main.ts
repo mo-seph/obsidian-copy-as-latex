@@ -7,6 +7,9 @@ import { syntax } from 'micromark-extension-wiki-link'
 import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
+import {math} from 'micromark-extension-math'
+import {mathFromMarkdown, mathToMarkdown} from 'mdast-util-math'
+
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
@@ -18,8 +21,8 @@ export default class CopyAsLatexPlugin extends Plugin {
 	settings: CopyAsLatexPluginSettings; 
 	bibtex: BibtexConverter = new BibtexConverter()
 	remarkSetup = {
-		extensions: [syntax(),gfm()],
-		mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown()]
+		extensions: [syntax(),gfm(),math()],
+		mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown(),mathFromMarkdown()]
 	}
 
 	async onload() {
