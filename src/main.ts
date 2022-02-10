@@ -1,4 +1,4 @@
-import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, EditorPosition, FileSystemAdapter } from 'obsidian';
+import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, EditorPosition, FileSystemAdapter, TextComponent } from 'obsidian';
 import {fromMarkdown} from 'mdast-util-from-markdown'
 
 // @ts-ignore - not sure how to build a proper typescript def yet
@@ -13,9 +13,10 @@ import {mathFromMarkdown, mathToMarkdown} from 'mdast-util-math'
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-import {ASTtoString,ConversionSettings, preprocessAST,citeType, findAll, findCitations} from './convert'
+import {ASTtoString,ConversionSettings, preprocessAST,citeCommand, findAll, findCitations, citationType} from './convert'
 import * as path from 'path';
 import { BibtexConverter } from './bibtex';
+import CopyAsLatexSettingTab, { CopyAsLatexPluginSettings, DEFAULT_SETTINGS } from './settings';
 
 export default class CopyAsLatexPlugin extends Plugin {
 	settings: CopyAsLatexPluginSettings; 
@@ -47,7 +48,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		if( this.settings.logOutput ) {console.log(ast);}
-		if( this.settings.experimentalCitations ) preprocessAST(ast)
+		if( this.settings.citeCommand === "extended" ) preprocessAST(ast)
 		if( this.settings.logOutput ) {console.log("New AST:",ast);}
 		const result = ASTtoString(ast,this.settings)
 		if( this.settings.logOutput ) {console.log(result);}
@@ -131,118 +132,3 @@ export default class CopyAsLatexPlugin extends Plugin {
 }
 
 
-/* No settings provided yet... */
-
-export interface CopyAsLatexPluginSettings extends ConversionSettings {
-	logOutput: boolean;
-	copyWhole: boolean;
-	bibtexFile: string;
-}
-
-const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
-	logOutput: false,
-	copyWhole: true,
-	inlineDelimiter:"",
-	mintedListings: false,
-	experimentalCitations:false,
-	citeType : 'autocite',
-	citeTemplate:"\\cite{{[pre]}}{{[post]}}{{{id}}}",
-	bibtexFile: ""
-}
-
-class CopyAsLatexSettingTab extends PluginSettingTab {
-	plugin: CopyAsLatexPlugin;
-
-	constructor(app: App, plugin: CopyAsLatexPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		let {containerEl} = this;
-
-		containerEl.empty();
-
-		containerEl.createEl('h2', {text: 'Settings for Copy as Latex'});
-
-		new Setting(containerEl)
-		.setName('Log Output')
-		.setDesc('Should the plugin log output to the Console - mostly just for debugging')
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.logOutput)
-			.onChange(async (value) => {
-				this.plugin.settings.logOutput = value;
-				await this.plugin.saveSettings();
-			}));
-		const options : Record<citeType,string>  = {
-			"basic":"Basic - \\cite{@foo}",
-			"autocite":"Autocite - \\autocite{@foo}",
-			"parencite":"Paren Cite - \\parencite{@foo}",
-		}
-		new Setting(containerEl)
-		.setName('Citation type')
-		.setDesc('What command to use for citations?')
-		.addDropdown(dropdown => dropdown
-			.addOptions(options)
-			.setValue(this.plugin.settings.citeType)
-			.onChange(async (value:citeType) => {
-				this.plugin.settings.citeType = value;
-				await this.plugin.saveSettings();
-			}));	
-		new Setting(containerEl)
-		.setName('Minted Output')
-		.setDesc('Use the minted package for code listings? (Note: - not used for inline code at the moment)')
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.mintedListings)
-			.onChange(async (value) => {
-				this.plugin.settings.mintedListings = value;
-				await this.plugin.saveSettings();
-			}));		
-		new Setting(containerEl)
-		.setName('Inline delimiters')
-		.setDesc('What delimiters to use for inline lstlistings? Default is curly braces ')
-		.addText(text => text
-			.setValue(this.plugin.settings.inlineDelimiter)
-			.onChange(async (value) => {
-				this.plugin.settings.inlineDelimiter = value;
-				await this.plugin.saveSettings();
-			}));
-		new Setting(containerEl)
-		.setName('Copy whole note')
-		.setDesc('If nothing is selected, should the plugin copy the whole note as latex?')
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.copyWhole)
-			.onChange(async (value) => {
-				this.plugin.settings.copyWhole = value;
-				await this.plugin.saveSettings();
-			}));
-		new Setting(containerEl)
-		.setName('Experimental Citation parsing')
-		.setDesc('! Danger - may not work - tries to do some clever parsing of text for complex citations. Overrides citation type above')
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.experimentalCitations)
-			.onChange(async (value) => {
-				this.plugin.settings.experimentalCitations = value;
-				await this.plugin.saveSettings();
-			}));
-		new Setting(containerEl)
-		.setName('Experimental Citation template')
-		.setDesc('! Template for experimental citations.')
-		.addText(text => text
-			.setValue(this.plugin.settings.citeTemplate)
-			.onChange(async (value) => {
-				this.plugin.settings.citeTemplate = value;
-				await this.plugin.saveSettings();
-			}));
-		containerEl.createDiv({text:'Example citation templates would be: \n"\\cite{{[pre]}}{{[post]}}{{{id}}}" for natbib, \n"\\autocite{{(pre)}}{{[post]}}{{{id}}}" '})
-		new Setting(containerEl)
-		.setName('Experimental BibTex file Copy Citations')
-		.setDesc('! Set a bibtex file here relative to Vault root, and then you can copy citations from it if they are missing in a target bibliography on the clipboard')
-		.addText(text => text
-			.setValue(this.plugin.settings.bibtexFile)
-			.onChange(async (value) => {
-				this.plugin.settings.bibtexFile = value;
-				await this.plugin.saveSettings();
-			}))
-	}
-}

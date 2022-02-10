@@ -11,14 +11,14 @@ import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
 
-export type citeType = "basic" | "autocite" | "parencite"
+export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
+export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren"
 
 export interface ConversionSettings {
 	inlineDelimiter:string;
 	mintedListings: boolean;
-	citeType: citeType
-	citeTemplate:string;
-	experimentalCitations:boolean;
+	citeCommand: citeCommand
+	citationTemplates:Record<citationType,string>;
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
@@ -68,11 +68,13 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 
 	const lm = labelMatch.exec(v)
 	if( lm && lm.length > 0 ) return `\\label{${lm[1]}}`
+	if( !v ) return ""
 	return escapeLatex(v)
 };
 
 function escapeLatex(input:string) : string {
 	var v = input
+	if( input === null || input === undefined ) return "";
 	// Characters that need escaping in free text:
 	// & % $ # _ { } ~ ^ \
 	// \& \% \$ \# \_ \{ \}
@@ -107,25 +109,56 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const h = a as wikiLink
 	const url:string = h.value
 	if(url.startsWith("@") ) { 
-		if( settings.experimentalCitations ) {
-			const pre = (h as any).pre ? (h as any).pre : null
-			const post = (h as any).post ? (h as any).post : null
-			const id = url.substring(1)
-			let citation = settings.citeTemplate
-			citation = citation.replace(/{{id}}/,id)
-			citation = citation.replace(/{{([^}]?)pre([^{]?)}}/,pre ? `$1${pre}$2` : "")
-			citation = citation.replace(/{{([^}]?)post([^{]?)}}/,post ? `$1${post}$2` : "")
-			return citation
+		if( settings.citeCommand === "extended" ) {
+			return extendedCitation(h,settings);
 		}
 		else {
-			if(settings.citeType == "basic") return "\\cite{" + url.substring(1) + "}" ;
-			else if(settings.citeType == "autocite") return "\\autocite{" + url.substring(1) + "}" 
-			else if(settings.citeType == "parencite") return "\\parencite{" + url.substring(1) + "}" 
+			if(settings.citeCommand == "basic") return "\\cite{" + url.substring(1) + "}" ;
+			else if(settings.citeCommand == "autocite") return "\\autocite{" + url.substring(1) + "}" 
+			else if(settings.citeCommand == "parencite") return "\\parencite{" + url.substring(1) + "}" 
 		}
 	}
 	if(url.startsWith("^") ) { return "\\ref{" + url.substring(1) + "}" }
 	return url 
 }
+
+//For internal links that start with '@'
+const extendedCitation = (h:wikiLink,settings:ConversionSettings) =>  {
+	const pre = "pre" in h ? (h as any).pre : null
+	const post = "post" in h ? (h as any).post : null
+	const id = h.value.substring(1)
+	var citeText = '\\cite{{{id}}}'
+	
+	// Bare citation, e.g. `go see [[@ref]] for some stuff`
+	if( ( pre === null ) && (post === null) ) {
+		citeText = settings.citationTemplates["bare"];
+	} 
+	// Surrounded citation, e.g. `a bit thing (e.g. [[@ref]] p.37)`
+	else if( pre && post ) {
+		citeText = settings.citationTemplates["surrounded"];
+	}
+	// Pre citation `something large (e.g. [[@ref]])`
+	else if( pre ) {
+		citeText = settings.citationTemplates["pre"];
+	}
+	// Post citation `some things from the book ([[@ref]], p.37)
+	else if( post ) {
+		citeText = settings.citationTemplates["post"];
+	}
+	// Paren citation => citet `some things from Author ([[@ref]])
+	else {
+		citeText = settings.citationTemplates["paren"];
+	}
+	
+	//let citation = settings.citeTemplate
+	citeText = citeText.replace(/#id/,id || "")
+	citeText = citeText.replace(/#pre/,pre || "")
+	citeText = citeText.replace(/#post/,post || "")
+	//console.log("From",h)
+	//console.log("Got: ",citeText)
+	return citeText	 || ""
+}
+
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
 	return "\\url{" + l.url + "}"

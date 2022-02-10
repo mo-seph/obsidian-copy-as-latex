@@ -78,16 +78,35 @@ Complex features:
 ## How to use
 Make sure your latex file includes the `soul` and `listings` packages, and off you go.
 
-## Experiemental
-- Citations are fine if they are simple, but quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. Currently trying an addition so that extra information can be put in parentheses, i.e. `here is a (e.g. [[@example]] p.22)`. This may change, but it currently grabs `pre` and `post` - the bits before and after the link, without spaces. These is then templated into the right form for `\cite` or `\autocite` with a user definable template, where `{{[pre]}}` means "use the value for `pre`, and if it is there, keep the square brackets; if it is not, get rid of them - so with `\autocite{{(pre)}}{{[post]}}{{{id}}}` and ` (e.g. [[@author2021Paper]] p.22)`, it produces `\autocite(e.g.)[p.22]{author2021Paper}`
-- New command: Copy missing citations. To use it:
+## Citations
+Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. To find an accomodation between Obsidian and Latex, the Extended Citation Parsing section parses parentheses to get information surrounding refs. `here is a (e.g. [[@example]] p.22)` would give a citation with `e.g.` as the `pre` part and `p.22` as the `post` part. There are then a series of templates depending on which of these are present: `bare` means neither, `pre`,`post`,`surrounded` is one or the other or both, and `paren` is for when pre and post are there but both blank, e.g. `([[@ref]])`. This means that different points can be set up, for e.g. `\citep` versus `\citet`, e.g.:
+
+```
+"bare" : "\\citep{#id}",
+"surrounded" : "\\cite[#pre][#post]{#id}}",
+"pre" : "\\cite[#pre]{#id}}" ,
+"post" : "\\cite[#post]{#id}}",
+"paren" : "\\citet{#id}"	
+```
+
+
+
+This may change, but it currently grabs `pre` and `post` - the bits before and after the link, without spaces. These is then templated into the right form for `\cite` or `\autocite` with a user definable template, where `{{[pre]}}` means "use the value for `pre`, and if it is there, keep the square brackets; if it is not, get rid of them - so with `\autocite{{(pre)}}{{[post]}}{{{id}}}` and ` (e.g. [[@author2021Paper]] p.22)`, it produces `\autocite(e.g.)[p.22]{author2021Paper}`
+
+## Copy Citations
+This is a command that lets you copy the citations that are missing from a bibliography (e.g. I've just added some text to my Overleaf, need to update the `.bib` file too)
+To use it:
 	- Set your main bibliography file in the config (source)
 	- Copy the current bibliography of your paper to the clipboard (target)
-	- Run Copy Missing Citations. It will look for all the citation keys in the Markdown doc, and any that are present in the source and missing from the target will be copied to the clipboard.
+	- Run `Copy Missing Citations` from the command pallette. It will look for all the citation keys in the Markdown doc, and any that are present in the source and missing from the target will be copied to the clipboard.
 
 # Development
 
 ## Changelog
+
+### 1.9
+- Citation templates for various styles
+- Copy missing citations command
 
 ### 1.8
 - Escape special characters
