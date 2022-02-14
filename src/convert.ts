@@ -161,7 +161,7 @@ const extendedCitation = (h:wikiLink,settings:ConversionSettings) =>  {
 
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
-	return "\\url{" + l.url + "}"
+	return "\\href{" + l.url + "}{" + l.title + "}"
 }
 
 const codeBlock = (a:Node,settings:ConversionSettings,indent:number=0) => {
