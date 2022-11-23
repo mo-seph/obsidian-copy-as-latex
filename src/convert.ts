@@ -8,7 +8,7 @@ import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
-import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
+import { Code, Heading, InlineCode, Link, List, Node, Parent, Text } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
 
 export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
@@ -161,7 +161,12 @@ const extendedCitation = (h:wikiLink,settings:ConversionSettings) =>  {
 
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
-	return "\\url{" + l.url + "}"
+	const title = ((l as Parent).children[0] as Text).value
+	if (title === "") {
+		return "\\url{" + l.url + "}"
+	} else {
+		return "\\href{" + l.url + "}{" + title + "}"
+	}
 }
 
 const codeBlock = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -172,10 +177,17 @@ ${cd.value}
 \\end{minted}
 `
 	}
+	if (cd.lang == undefined) {
+		return `\\begin{lstlisting}
+${cd.value}
+\\end{lstlisting}
+`
+	} else {
 	return `\\begin{lstlisting}[language=${cd.lang}]
 ${cd.value}
 \\end{lstlisting}
 `
+	}
 }
 
 const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
