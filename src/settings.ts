@@ -13,7 +13,7 @@ export interface CopyAsLatexPluginSettings extends ConversionSettings {
 export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	logOutput: false,
 	copyWhole: true,
-	inlineDelimiter:"",
+	inlineDelimiter:"`",
 	mintedListings: false,
 	citeCommand : 'autocite',
 	bibtexFile: "",
