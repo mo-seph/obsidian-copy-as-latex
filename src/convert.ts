@@ -1,4 +1,4 @@
-import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, requestUrl, Setting } from 'obsidian';
 import {fromMarkdown} from 'mdast-util-from-markdown'
 
 // @ts-ignore - not sure how to build a proper typescript def yet
@@ -8,8 +8,9 @@ import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
-import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
-import { Literal } from 'mdast';
+import { Blockquote, Code, Heading, Image, InlineCode, Link, List, Node, Parent, Text } from 'mdast-util-from-markdown/lib';
+import { Literal, Table } from 'mdast';
+import * as path from 'path';
 
 export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
 export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren"
@@ -34,9 +35,6 @@ const postCiteMatch = /^([^)]*)\)(.*)$/s
  * Overall function to carry out the conversion
  */
 export function ASTtoString(input:Node,settings:ConversionSettings,indent:number=0) : string {
-	var t = input.type;
-
-
 	const transforms : { [key:string] : Convert } = {
 		'root': wrapper("\n",""),
 		'paragraph': wrapper("","\n"),
@@ -53,10 +51,13 @@ export function ASTtoString(input:Node,settings:ConversionSettings,indent:number
 		'inlineCode': inlineCode,
 		'inlineMath': inlineMath,
 		'math': displayMath,
+		'image': image,
+		'blockquote': blockQuote,
+		'table': table,
 	}
 	const f:Convert = transforms[input.type] || defaultC
 	const trans = f(input,settings,indent)
-	return   trans
+	return trans
 }
 
 /*
@@ -95,7 +96,13 @@ const heading = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	var sec = "section"
 	if( h.depth == 2 ) sec = "subsection"
 	if( h.depth == 3 ) sec = "subsubsection"
-	return "\\" + sec + "{" + ASTtoString((a as Parent).children[0],settings) + "}\n"
+	let header = ASTtoString((a as Parent).children[0],settings)
+	let is_paragraph = h.depth == 4
+	let label = `\\label{sec:${header}}\n`
+	if (is_paragraph) {
+		return `\\${sec}{${header}}\n`+label
+	}
+	return `\\${sec}{${header}}\n`+label
 }
 
 const list = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -161,7 +168,36 @@ const extendedCitation = (h:wikiLink,settings:ConversionSettings) =>  {
 
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
-	return "\\url{" + l.url + "}"
+	const url = l.url
+	const title = (l.children[0] as Text).value
+	if(title.startsWith("@") ) { 
+		return "\\cite{" + title.substring(1) + "}" ;
+	} else if (title.startsWith("!")) {	//	newcommand
+		return "\\" + title.substring(1);
+	} else if (url.startsWith("#")) {
+		if (url === "#code") {
+			return `${escapeLatex(title)}\\autoref{code:${title}}`
+		} else if (url === "#fig") {
+			return `${escapeLatex(title)}\\autoref{fig:${title}}`
+		}
+		let ref = decodeURI(url.substring(1))
+		let header = `${escapeLatex(title)}\\autoref{sec:${escapeLatex(ref)}}`
+		return header
+	} else  {
+		if (url.startsWith("http://") || url.startsWith("https://")) {
+			if (title === "") {
+				return "\\url{" + l.url + "}"
+			} else {
+				return "\\href{" + l.url + "}{" + escapeLatex(title) + "}"
+			}
+		} else {
+			if (title === "") {
+				return "\\repodocref{" + l.url + "}{" + escapeLatex(l.url) + "}"
+			} else {
+				return "\\repodocref{" + l.url + "}{" + escapeLatex(title) + "}"
+			}
+		}
+	}
 }
 
 const codeBlock = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -172,10 +208,25 @@ ${cd.value}
 \\end{minted}
 `
 	}
-	return `\\begin{lstlisting}[language=${cd.lang}]
+	if (cd.lang == undefined) {
+		return `\\begin{lstlisting}
 ${cd.value}
 \\end{lstlisting}
 `
+	} else {
+		let caption = ""
+		if (cd.meta != undefined && cd.meta != null) {
+			caption = cd.meta
+		}
+		let label = ""
+		if (caption !== "") {
+			label = `code:${caption}`
+		}
+	return `\\begin{lstlisting}[language=${cd.lang},caption=${escapeLatex(caption)},label=${label}]
+${cd.value}
+\\end{lstlisting}
+`
+	}
 }
 
 const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -202,6 +253,108 @@ const inlineMath = (a:Node,settings:ConversionSettings,indent:number=0) => {
 const displayMath = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const v = (a as Literal).value
 	return `$$\n${v}\n$$`
+}
+
+/**
+ * {
+  type: 'image',
+  url: 'https://example.com/favicon.ico',
+  title: 'bravo',
+  alt: 'alpha'
+ * }
+
+  convert `![alt](url title)` to latex representation
+ * @param a 
+ * @param settings 
+ * @param indent 
+ */
+const image = (a: Node, settings: ConversionSettings, indent: number=0) => {
+	const v = (a as Image)
+	const title = escapeLatex(v.alt)
+	const ourl = v.url
+	let base_path = path.basename(ourl)
+	return `\\begin{figure}[H]
+	\\centering
+	\\includegraphics[width=\\textwidth]{figures/${base_path}}
+	\\caption{${title}}
+	\\label{fig:${title}}
+\\end{figure}`
+}
+
+/**
+ * https://github.com/syntax-tree/mdast#blockquote
+ * @param a 
+ * @param settings 
+ * @param indent 
+ * @returns 
+ */
+const blockQuote = (a: Node, settings: ConversionSettings, indent: number=0) => {
+	const quote = a as Blockquote
+	const children = (quote as Parent).children
+	let content = ""
+	children.forEach(child => {
+		content += ASTtoString(child, settings, 4)
+	});
+	content.trimEnd()
+	return `\\begin{displayquote}
+${content}\\end{displayquote}`
+}
+
+
+/**
+ * https://github.com/syntax-tree/mdast#table
+ * @param a 
+ * @param settings 
+ * @param indent 
+ */
+const table = (a: Node, settings: ConversionSettings, indent: number = 0) => {
+	const table = a as Table
+	let aligns = table.align
+	let rows = table.children
+	let align_str = "|"
+	let content = "\\hline\n"
+	aligns.forEach(align => {
+		switch (align) {
+			case 'center':
+				align_str += 'c'
+				break;
+			case 'left':
+				align_str += 'l'
+				break;
+			case 'right':
+				align_str += 'r'
+				break;
+			default:
+				align_str += 'c'
+				break;
+		}
+		align_str += '|'
+	})
+	rows.forEach(row => {
+		let line = row.children
+		let first = line[0]
+		if (first.children.length != 0) {
+			content += ASTtoString(line[0].children[0], settings, 0)
+		}
+		line.forEach((elem, index) => {
+			if (index == 0) {
+				return
+			}
+			if (elem.children.length != 0) {
+				content += "\t& " + ASTtoString(elem.children[0], settings, 0)
+			} else {
+				content += "\t& "
+			}
+		})
+		content += "\\\\\ \\hline\n"
+	});
+
+	return `\\begin{table}[H]
+\\resizebox{\\textwidth}{!}{
+\\begin{tabular}{${align_str}}
+${content.trimEnd()}
+\\end{tabular}}
+\\end{table}`
 }
 
 export function findAll(input:Node,cond:{(i:Node): boolean}):Node[] {
