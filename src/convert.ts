@@ -187,6 +187,45 @@ const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	return `\\lstinline{${cd.value}}`
 }
 
+// Function to convert a Markdown table to a LaTeX table
+const markdownTableToLatex: Convert = (tableNode: Node, settings: ConversionSettings, indent: number = 0) => {
+    const table = tableNode as Parent;
+
+    // Get the alignment information for each column
+    const alignments: string[] = [];
+    if (table.children.length > 1 && table.children[1].type === 'tableRow') {
+        const row = table.children[1] as Parent;
+        row.children.forEach((cell) => {
+            if (cell.type === 'tableCell') {
+                alignments.push((cell as Parent).children[0].value.trim());
+            }
+        });
+    }
+
+    // Convert each row of the table
+    const rows: string[] = [];
+    table.children.forEach((rowNode) => {
+        if (rowNode.type === 'tableRow') {
+            const row = rowNode as Parent;
+            const cells: string[] = row.children.map((cell, index) => {
+                const cellContent = ASTtoString(cell, settings, indent);
+                const alignment = alignments[index] || 'l'; // Default alignment is left
+                return `\\begin{tabular}[c]{@{}${alignment}@{}}${cellContent}\\end{tabular}`;
+            });
+            rows.push(cells.join(' & '));
+        }
+    });
+
+    // Combine rows into a complete LaTeX table
+    return `\\begin{tabular}{${alignments.join('')}}\n${rows.join(' \\\\ \n')}\\\\\n\\end{tabular}`;
+};
+
+// Add 'table' to the transforms object
+const transforms: { [key: string]: Convert } = {
+    // ... existing transformations
+    'table': markdownTableToLatex,
+};
+
 // Make sure not to escape anything in the math block
 // (and add back in the dollar signs)
 const inlineMath = (a:Node,settings:ConversionSettings,indent:number=0) => {
