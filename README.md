@@ -70,13 +70,14 @@ Complex features:
 - [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
 - [X] And turns block ids into `\label{}` elements
+- [X] tables - markdown tables become booktabs `tabular` or `tabulary` tables, optionally in a `table` float (see Tables below)
 - [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
 - [ ] images - it should be possible to turn image links into something that connects to the filename
 - [ ] captions
 
 
 ## How to use
-Make sure your latex file includes the `soul` and `listings` packages, and off you go.
+Make sure your latex file includes the `soul`, `listings` and `booktabs` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
 
 ## Citations
 Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. There are two parts to the setup: the **Citation syntax** setting says how citations are written in your notes (wiki links or pandoc), and the **Citation Command** setting says what LaTeX to produce (`\cite`, `\autocite`, `\parencite`, or the extended templates described below).
@@ -124,6 +125,37 @@ With the `Extended Citations` command, each kind of citation is rendered with a 
 
 There are presets (Default, Autocite, Natbib, Brute-Force) in the settings, and each template can be edited individually. `paren` is only produced by wiki-link citations, and `intext` only by pandoc ones.
 
+## Tables
+Markdown tables are converted to [booktabs](https://ctan.org/pkg/booktabs) tables, so include `\usepackage{booktabs}` in your document. Column alignment comes from the `:---:` markers (unmarked columns are left-aligned), the first row is the header, and cell contents are converted like any other text, so emphasis, inline code, math and citations work inside cells.
+
+```markdown
+| Name | Value | Note   |
+|:-----|------:|:------:|
+| *a*  | 1 & 2 | [@foo] |
+| b    | 3     |        |
+```
+becomes
+```latex
+\begin{table}[htbp]
+\centering
+\caption{}
+\begin{tabular}{lrc}
+\toprule
+Name & Value & Note \\
+\midrule
+\emph{a} & 1 \& 2 & \cite{foo} \\
+b & 3 &  \\
+\bottomrule
+\end{tabular}
+\end{table}
+```
+
+Two settings control this:
+- *Table environment*: `tabular` (the default) gives each column its natural width. `tabulary` spreads the columns over the line width and wraps long cells, which is usually what you want for tables with much text; it needs `\usepackage{tabulary}` and produces `\begin{tabulary}{\linewidth}{LRC}`.
+- *Wrap tables in a float*: on by default. Wraps the table in a `table` float with `\centering` and an empty `\caption{}` above it for you to fill in (add a `\label{}` after the caption if you need one). Turn it off to get a bare `tabular`.
+
+Column widths, multi-line cells and merged cells can't be expressed in markdown, so those are left for tweaking in LaTeX.
+
 ## Copy Citations
 This is a command that lets you copy the citations that are missing from a bibliography (e.g. I've just added some text to my Overleaf, need to update the `.bib` file too)
 To use it:
@@ -148,6 +180,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - Pandoc citation syntax (`[@key, p.3; @other]`, `@key` in text) as an alternative to `[[@key]]` wiki links - see the Citation syntax setting
 - `intext` citation template for author-in-text citations
 - Default extended templates fixed (stray closing braces)
+- Tables: markdown tables become booktabs tables (`tabular` or `tabulary`), optionally wrapped in a `table` float
 
 
 ### 1.9

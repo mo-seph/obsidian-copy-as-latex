@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, TextComponent } from "obsidian";
-import { citationSyntax, citationType, citeCommand, ConversionSettings } from "./convert";
+import { citationSyntax, citationType, citeCommand, ConversionSettings, tableEnvironment } from "./convert";
 import CopyAsLatexPlugin from "./main";
 
 export interface CopyAsLatexPluginSettings extends ConversionSettings {
@@ -69,6 +69,8 @@ export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	mintedListings: false,
 	citeCommand : 'autocite',
 	citationSyntax: 'wikilink',
+	tableEnvironment: 'tabular',
+	tableFloat: true,
 	bibtexFile: "",
 	citationTemplates: Object.assign({}, citationSets["Default"]),
 }
@@ -125,6 +127,46 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
                 this.plugin.settings.copyWhole = value;
                 await this.plugin.saveSettings();
             }));
+
+		new Setting(containerEl).setName('Tables').setHeading();
+
+		const tableOptions : Record<tableEnvironment,string> = {
+			"tabular": "tabular - natural column widths",
+			"tabulary": "tabulary - columns wrap to fit the line width",
+		}
+		new Setting(containerEl)
+		.setName('Table environment')
+		.setDesc(createFragment((f) => {
+			f.appendText('Markdown tables become booktabs tables, so include ')
+			f.createEl('code', {text: '\\usepackage{booktabs}'})
+			f.appendText(' in your document. tabular gives each column its natural width; tabulary spreads the columns over the line width and wraps long cells, and needs ')
+			f.createEl('code', {text: '\\usepackage{tabulary}'})
+			f.appendText('.')
+		}))
+		.addDropdown(dropdown => dropdown
+			.addOptions(tableOptions)
+			.setValue(this.plugin.settings.tableEnvironment)
+			.onChange(async (value:tableEnvironment) => {
+				this.plugin.settings.tableEnvironment = value;
+				await this.plugin.saveSettings();
+			}));
+		new Setting(containerEl)
+		.setName('Wrap tables in a float')
+		.setDesc(createFragment((f) => {
+			f.appendText('Put each table inside ')
+			f.createEl('code', {text: '\\begin{table}[htbp]'})
+			f.appendText(' with ')
+			f.createEl('code', {text: '\\centering'})
+			f.appendText(' and an empty ')
+			f.createEl('code', {text: '\\caption{}'})
+			f.appendText(' above it to fill in. Turn off to get just the tabular.')
+		}))
+		.addToggle(toggle => toggle
+			.setValue(this.plugin.settings.tableFloat)
+			.onChange(async (value) => {
+				this.plugin.settings.tableFloat = value;
+				await this.plugin.saveSettings();
+			}));
 
 		new Setting(containerEl).setName('Citations').setHeading();
 

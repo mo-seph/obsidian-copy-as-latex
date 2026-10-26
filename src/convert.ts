@@ -9,7 +9,7 @@ import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
-import { Literal } from 'mdast';
+import { AlignType, Literal, Table } from 'mdast';
 
 export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
 // How citations are written in the markdown source:
@@ -17,6 +17,8 @@ export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
 // - "pandoc": pandoc/citeproc syntax, e.g. [@key, p.3; @other] or @key in running text
 export type citationSyntax = "wikilink" | "pandoc"
 export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren" | "intext"
+// Which latex environment holds table cells
+export type tableEnvironment = "tabular" | "tabulary"
 
 export interface ConversionSettings {
 	inlineDelimiter:string;
@@ -24,6 +26,8 @@ export interface ConversionSettings {
 	citeCommand: citeCommand
 	citationSyntax: citationSyntax
 	citationTemplates:Record<citationType,string>;
+	tableEnvironment: tableEnvironment;
+	tableFloat: boolean;
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
@@ -50,6 +54,9 @@ export function ASTtoString(input:Node,settings:ConversionSettings,indent:number
 		'delete': (a:Node) => {return "\\st{" + wrapper("","")(a,settings) + "}"},
 		'footnote': (a:Node) => {return "\\footnote{" + wrapper("","")(a,settings) + "}"},
 		'list' : list,
+		'table': table,
+		'tableRow': tableRow,
+		'tableCell': wrapper("",""),
 		'listItem': (a:Node) => {return "\t".repeat(indent) + "\\item " + wrapper("","")(a,settings,indent) },
 		'heading': heading,
 		'wikiLink': internalLink,
@@ -115,6 +122,36 @@ const list = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	return "\t".repeat(indent) + "\\begin{" + sec + "}\n" + 
 		wrapper("","")(a,settings,indent+1) +
 		"\t".repeat(indent) + "\\end{" + sec + "}\n"
+}
+
+/*
+ * Tables: GFM tables become booktabs tables, with column alignment from the `:---:`
+ * markers, the first row as the header, and optionally a `table` float around them.
+ */
+const columnSpec = (align:AlignType[],env:tableEnvironment) : string => {
+	const spec = align.map((al) => al === "right" ? "r" : al === "center" ? "c" : "l").join("")
+	// tabulary uses upper case letters for its auto-width columns
+	return env === "tabulary" ? spec.toUpperCase() : spec
+}
+
+const table = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	const t = a as Table
+	const env : tableEnvironment = settings.tableEnvironment === "tabulary" ? "tabulary" : "tabular"
+	const spec = columnSpec(t.align || [],env)
+	const rows = t.children.map((r) => ASTtoString(r,settings,indent))
+	const header = rows[0]
+	const body = rows.slice(1)
+	const begin = env === "tabulary" ? `\\begin{tabulary}{\\linewidth}{${spec}}` : `\\begin{tabular}{${spec}}`
+	const lines = [begin, "\\toprule", header]
+	if( body.length > 0 ) lines.push("\\midrule", ...body)
+	lines.push("\\bottomrule", `\\end{${env}}`)
+	if( !settings.tableFloat ) return lines.join("\n") + "\n"
+	// The caption goes above the table, as is conventional, and is left empty to fill in
+	return ["\\begin{table}[htbp]", "\\centering", "\\caption{}", ...lines, "\\end{table}"].join("\n") + "\n"
+}
+
+const tableRow = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	return (a as Parent).children.map((c) => ASTtoString(c,settings,indent)).join(" & ") + " \\\\"
 }
 const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const h = a as wikiLink
