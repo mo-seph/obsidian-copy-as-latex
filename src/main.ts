@@ -60,7 +60,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 		let text = editor.getSelection();
 		if(text.length == 0 && this.settings.copyWhole) text = editor.getRange({line:0,ch:0},{line:(editor.lastLine()+1),ch:0})
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
-		const keysInDoc = findCitations(ast)
+		const keysInDoc = findCitations(ast,this.settings)
 		console.log("Citations in document",keysInDoc)
 		const myBibFile = this.resolveLibraryPath(this.settings.bibtexFile)
 		console.log("Bib file:",myBibFile)
@@ -124,6 +124,8 @@ export default class CopyAsLatexPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		// Templates added in later versions (e.g. intext) get their defaults if the saved settings lack them
+		this.settings.citationTemplates = Object.assign({}, DEFAULT_SETTINGS.citationTemplates, this.settings.citationTemplates);
 	}
 
 	async saveSettings() {

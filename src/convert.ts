@@ -12,12 +12,17 @@ import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-
 import { Literal } from 'mdast';
 
 export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
-export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren"
+// How citations are written in the markdown source:
+// - "wikilink": Obsidian internal links, e.g. [[@key]]
+// - "pandoc": pandoc/citeproc syntax, e.g. [@key, p.3; @other] or @key in running text
+export type citationSyntax = "wikilink" | "pandoc"
+export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren" | "intext"
 
 export interface ConversionSettings {
 	inlineDelimiter:string;
 	mintedListings: boolean;
 	citeCommand: citeCommand
+	citationSyntax: citationSyntax
 	citationTemplates:Record<citationType,string>;
 }
 // Conversions go from a Node with a certain amount of indentation to a string
@@ -69,6 +74,12 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 	const lm = labelMatch.exec(v)
 	if( lm && lm.length > 0 ) return `\\label{${lm[1]}}`
 	if( !v ) return ""
+	// Pandoc citations live inside ordinary text nodes, so pull them out before escaping
+	if( a.type === "text" && settings.citationSyntax === "pandoc" ) {
+		return parsePandocCitations(v)
+			.map((seg) => typeof seg === "string" ? escapeLatex(seg) : pandocCitation(seg,settings))
+			.join("")
+	}
 	return escapeLatex(v)
 };
 
@@ -150,14 +161,166 @@ const extendedCitation = (h:wikiLink,settings:ConversionSettings) =>  {
 		citeText = settings.citationTemplates["paren"];
 	}
 	
-	//let citation = settings.citeTemplate
-	citeText = citeText.replace(/#id/,id || "")
-	citeText = citeText.replace(/#pre/,pre || "")
-	citeText = citeText.replace(/#post/,post || "")
-	//console.log("From",h)
-	//console.log("Got: ",citeText)
-	return citeText	 || ""
+	return fillTemplate(citeText,id,pre,post)
 }
+
+// Substitute #id, #pre and #post into one of the citation templates
+function fillTemplate(template:string,id:string,pre:string|null,post:string|null) : string {
+	return (template || "\\cite{#id}")
+		.replace(/#id/g,id || "")
+		.replace(/#pre/g,pre || "")
+		.replace(/#post/g,post || "")
+}
+
+/*
+ * Pandoc-style citations, e.g. `[@key, p.149]`, `[see @key1; @key2, ch. 2]` or `@key` in running text.
+ * See https://pandoc.org/MANUAL.html#citation-syntax
+ */
+export interface PandocCitationItem {
+	key: string;
+	prefix: string;          // text before the key, e.g. "see" in [see @key]
+	suffix: string;          // text after the key, e.g. "p.149" in [@key, p.149]
+	suppressAuthor: boolean; // [-@key]
+}
+export interface PandocCitation {
+	items: PandocCitationItem[];
+	inText: boolean;         // `@key` written in running text rather than in brackets
+}
+// A piece of text is either literal text or a citation
+export type PandocSegment = string | PandocCitation
+
+// A citation key starts with a letter, digit or underscore, and may contain
+// internal punctuation as long as each punctuation character is followed by another alphanumeric
+const pandocKeyBody = "[A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#$%&\\-+?<>~/](?=[A-Za-z0-9_]))*"
+// Either a key as above, or anything at all in braces: @{odd key}
+const pandocKey = `(?:\\{([^}]+)\\}|(${pandocKeyBody}))`
+// One item inside brackets: prefix, optional '-', '@', key, suffix.
+// The '@' must not directly follow a word character, so email addresses are left alone.
+const pandocItemMatch = new RegExp(`^([\\s\\S]*?)(^|[^\\w@])(-?)@${pandocKey}([\\s\\S]*)$`)
+// A key in running text
+const pandocInTextMatch = new RegExp(`^(-?)@${pandocKey}`)
+// A locator in brackets straight after an in-text key: `@key [p. 33]`
+const pandocLocatorMatch = /^\s*\[([^\[\]]*)\]/
+
+// Parse the content of a [...] group as semicolon-separated citation items.
+// Returns null unless every item contains a key - otherwise the bracket is not a citation.
+function parsePandocItems(content:string) : PandocCitationItem[] | null {
+	const items : PandocCitationItem[] = []
+	for( const part of content.split(";") ) {
+		const m = pandocItemMatch.exec(part)
+		if( !m ) return null
+		items.push({
+			prefix: (m[1] + m[2]).trim(),
+			suppressAuthor: m[3] === "-",
+			key: m[4] !== undefined ? m[4] : m[5],
+			suffix: m[6].replace(/^\s*,/,"").trim(),
+		})
+	}
+	return items
+}
+
+// Split a piece of text into literal strings and pandoc citations
+export function parsePandocCitations(text:string) : PandocSegment[] {
+	const segments : PandocSegment[] = []
+	let literal = ""
+	const flush = () => { if( literal.length > 0 ) { segments.push(literal); literal = "" } }
+	let i = 0
+	while( i < text.length ) {
+		const ch = text[i]
+		const prev = i > 0 ? text[i-1] : ""
+		// Bracketed citation(s): [@a, p.3; see @b]
+		if( ch === "[" ) {
+			const close = text.indexOf("]",i+1)
+			const content = close >= 0 ? text.substring(i+1,close) : null
+			const items = ( content !== null && content.indexOf("[") < 0 ) ? parsePandocItems(content) : null
+			if( items ) {
+				flush()
+				segments.push({items, inText:false})
+				i = close + 1
+				continue
+			}
+		}
+		// In-text citation: @a or -@a, optionally followed by a locator in brackets
+		else if( (ch === "@" || (ch === "-" && text[i+1] === "@")) && !/[\w@]/.test(prev) ) {
+			const m = pandocInTextMatch.exec(text.substring(i))
+			if( m ) {
+				let end = i + m[0].length
+				let suffix = ""
+				const loc = pandocLocatorMatch.exec(text.substring(end))
+				// A following bracket is a locator unless it is itself a citation
+				if( loc && !parsePandocItems(loc[1]) ) {
+					suffix = loc[1].trim()
+					end += loc[0].length
+				}
+				flush()
+				segments.push({
+					items: [{ key: m[2] !== undefined ? m[2] : m[3], prefix:"", suffix:suffix, suppressAuthor: m[1] === "-" }],
+					inText: true
+				})
+				i = end
+				continue
+			}
+		}
+		literal += ch
+		i++
+	}
+	flush()
+	return segments
+}
+
+// The optional arguments for a biblatex/natbib style command: [pre][post], [pre][] or [post]
+function citeOptions(item:PandocCitationItem) : string {
+	const pre = escapeLatex(item.prefix), post = escapeLatex(item.suffix)
+	if( pre && post ) return `[${pre}][${post}]`
+	if( pre ) return `[${pre}][]`
+	if( post ) return `[${post}]`
+	return ""
+}
+
+// Turn a parsed pandoc citation into latex, following the Citation Command setting
+const pandocCitation = (c:PandocCitation,settings:ConversionSettings) : string => {
+	if( settings.citeCommand === "extended" ) return pandocTemplatedCitation(c,settings)
+	const commands : Record<string,string> = { basic:"cite", autocite:"autocite", parencite:"parencite" }
+	const cmd = commands[settings.citeCommand] || "cite"
+	// Plain \cite has no starred, textual or multi-argument forms; the biblatex commands do
+	const biblatex = settings.citeCommand !== "basic"
+	const items = c.items
+	const keys = items.map(i => i.key).join(",")
+	const star = (biblatex && items[0].suppressAuthor) ? "*" : ""
+	// `@key` in running text => \textcite{key}
+	if( c.inText ) {
+		const textCmd = !biblatex ? "cite" : (items[0].suppressAuthor ? cmd + "*" : "textcite")
+		return `\\${textCmd}${citeOptions(items[0])}{${keys}}`
+	}
+	const affixed = items.some(i => i.prefix.length > 0 || i.suffix.length > 0)
+	// [@a; @b] => \autocite{a,b}
+	if( !affixed ) return `\\${cmd}${star}{${keys}}`
+	// [@a, p.3] => \autocite[p.3]{a}
+	if( items.length == 1 ) return `\\${cmd}${star}${citeOptions(items[0])}{${keys}}`
+	// [@a, p.3; @b] => \autocites[p.3]{a}{b} ...
+	if( biblatex ) return `\\${cmd}s${star}` + items.map(i => `${citeOptions(i)}{${i.key}}`).join("")
+	// ... or one \cite per item when there is no multi-cite command
+	return items.map(i => `\\${cmd}${citeOptions(i)}{${i.key}}`).join("; ")
+}
+
+// Pandoc citation rendered with the Extended Citation Templates
+function pandocTemplatedCitation(c:PandocCitation,settings:ConversionSettings) : string {
+	const templates = settings.citationTemplates
+	const items = c.items
+	if( c.inText ) {
+		const i = items[0]
+		return fillTemplate(templates["intext"] || "\\textcite{#id}", i.key, escapeLatex(i.prefix), escapeLatex(i.suffix))
+	}
+	const affixed = items.some(i => i.prefix.length > 0 || i.suffix.length > 0)
+	// No prefixes or suffixes anywhere: all the keys go into one bare citation
+	if( !affixed ) return fillTemplate(templates["bare"], items.map(i => i.key).join(","), "", "")
+	// Otherwise each item gets its own template, chosen by what surrounds it
+	return items.map(i => {
+		const typ : citationType = (i.prefix && i.suffix) ? "surrounded" : i.prefix ? "pre" : i.suffix ? "post" : "bare"
+		return fillTemplate(templates[typ], i.key, escapeLatex(i.prefix), escapeLatex(i.suffix))
+	}).join("; ")
+}
+
 
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
@@ -211,13 +374,22 @@ export function findAll(input:Node,cond:{(i:Node): boolean}):Node[] {
 	return r
 }
 
-export function findCitations(ast:Node):Set<string> {
+export function findCitations(ast:Node,settings?:ConversionSettings):Set<string> {
 	const citationElements = findAll(ast,(n:Node) => {
 		if( (n.type as string) != 'wikiLink') return false
 		return (n as Literal).value.startsWith("@") 
 	})
 	const keyList = citationElements.map((n) => (n as Literal).value.replace("@",""))
-	return new Set<string>(keyList)
+	const keys = new Set<string>(keyList)
+	// With pandoc syntax, citations also hide inside ordinary text nodes
+	if( settings && settings.citationSyntax === "pandoc" ) {
+		findAll(ast,(n:Node) => n.type === "text").forEach((n) => {
+			parsePandocCitations((n as Literal).value).forEach((seg) => {
+				if( typeof seg !== "string" ) seg.items.forEach((i) => keys.add(i.key))
+			})
+		})
+	}
+	return keys
 }
 
 export function preprocessAST(input:any) {

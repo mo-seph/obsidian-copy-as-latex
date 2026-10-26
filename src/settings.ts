@@ -1,7 +1,5 @@
-/* No settings provided yet... */
-
 import { App, PluginSettingTab, Setting, TextComponent } from "obsidian";
-import { citationType, citeCommand, ConversionSettings } from "./convert";
+import { citationSyntax, citationType, citeCommand, ConversionSettings } from "./convert";
 import CopyAsLatexPlugin from "./main";
 
 export interface CopyAsLatexPluginSettings extends ConversionSettings {
@@ -10,67 +8,69 @@ export interface CopyAsLatexPluginSettings extends ConversionSettings {
 	bibtexFile: string;
 }
 
-export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
-	logOutput: false,
-	copyWhole: true,
-	inlineDelimiter:"",
-	mintedListings: false,
-	citeCommand : 'autocite',
-	bibtexFile: "",
-	citationTemplates: {
-		"bare" : "\\citep{#id}",
-		"surrounded" : "\\cite[#pre][#post]{#id}}",
-		"pre" : "\\cite[#pre]{#id}}" ,
-		"post" : "\\cite[#post]{#id}}",
-		"paren" : "\\citet{#id}"
-	}
-}
-
+// Shown next to each template in the settings, so people know which form it covers
 export const citationExplanations : Record<citationType,string> = {
-	"bare" : "Bare citation: `... is clearly shown [[@foo]].`",
-	"paren" : "Parenthetical: `Author ([[@ref]]) says...`",
-	"pre" : "Pre-text: `some people (e.g. [[@ref]]) say ...`" ,
-	"post" : "Post-text: `... from the book ([[@ref]] p.29)`",
-	"surrounded" : "Pre and post: `can find examples (e.g. [[@ref]] p.29)`",
+	"bare" : "Bare citation: `... is clearly shown [[@foo]].` or `[@foo]`",
+	"paren" : "Parenthetical: `Author ([[@ref]]) says...` (wiki links only)",
+	"pre" : "Pre-text: `some people (e.g. [[@ref]]) say ...` or `[e.g. @ref]`" ,
+	"post" : "Post-text: `... from the book ([[@ref]] p.29)` or `[@ref, p.29]`",
+	"surrounded" : "Pre and post: `can find examples (e.g. [[@ref]] p.29)` or `[e.g. @ref, p.29]`",
+	"intext" : "In text (pandoc only): `@ref says ...`. #post holds a locator in brackets: `@ref [p.29] says ...`",
 }
 
-
-const citationSets : Record<string,Record<citationType,string>> = {
+// Preset template sets; #id, #pre and #post are substituted
+export const citationSets : Record<string,Record<citationType,string>> = {
 	"Default" : {
 		"bare" : "\\cite{#id}",
 		"surrounded" : "\\cite[#pre][#post]{#id}",
 		"pre" : "\\cite[#pre][]{#id}" ,
 		"post" : "\\cite[#post]{#id}",
-		"paren" : "\\cite{#id}"	
+		"paren" : "\\cite{#id}",
+		"intext" : "\\textcite{#id}",
 	},
 	"Autocite" : {
 		"bare" : "\\autocite{#id}",
 		"surrounded" : "\\autocite[#pre][#post]{#id}",
 		"pre" : "\\autocite[#pre][]{#id}" ,
 		"post" : "\\autocite[#post]{#id}",
-		"paren" : "\\citeyear{#id}"	
+		"paren" : "\\citeyear{#id}",
+		"intext" : "\\textcite{#id}",
 	},
 	"Natbib" : {
 		"bare" : "\\citep{#id}",
 		"surrounded" : "\\cite[#pre][#post]{#id}",
 		"pre" : "\\cite[#pre][]{#id}" ,
 		"post" : "\\cite[#post]{#id}",
-		"paren" : "\\citet{#id}"	
+		"paren" : "\\citet{#id}",
+		"intext" : "\\citet{#id}",
 	},
 	"Brute-Force" : {
 		"bare" : "\\cite{#id}",
 		"surrounded" : "(#pre \\cite{#id} #post)",
 		"pre" : "(#pre \\cite{#id}})" ,
 		"post" : "(\\cite{#id}} #post)",
-		"paren" : "(\\cite{#id})"	
+		"paren" : "(\\cite{#id})",
+		"intext" : "\\cite{#id}",
 	},
 	"Testing" : {
 		"bare" : "\\cite{#id} BARE",
 		"surrounded" : "(#pre \\cite{#id} #post) SURR",
 		"pre" : "(#pre \\cite{#id}}) PRE" ,
 		"post" : "(\\cite{#id}} #post) POST",
-		"paren" : "\\cite{#id} PAREN"	
+		"paren" : "\\cite{#id} PAREN",
+		"intext" : "\\cite{#id} INTEXT",
 	}
+}
+
+export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
+	logOutput: false,
+	copyWhole: true,
+	inlineDelimiter:"",
+	mintedListings: false,
+	citeCommand : 'autocite',
+	citationSyntax: 'wikilink',
+	bibtexFile: "",
+	citationTemplates: Object.assign({}, citationSets["Default"]),
 }
 
 
@@ -125,15 +125,64 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
                 this.plugin.settings.copyWhole = value;
                 await this.plugin.saveSettings();
             }));
+
+		new Setting(containerEl).setName('Citations').setHeading();
+
+		const syntaxOptions : Record<citationSyntax,string> = {
+			"wikilink": "Wiki links - [[@foo]]",
+			"pandoc": "Pandoc - [@foo, p.3; @bar]",
+		}
+		new Setting(containerEl)
+		.setName('Citation syntax')
+		.setDesc(createFragment((f) => {
+			f.appendText('How citations are written in your notes.')
+			const list = f.createEl('ul')
+			const wl = list.createEl('li')
+			wl.createEl('strong', {text: 'Wiki links: '})
+			wl.appendText('internal links starting with @, e.g. ')
+			wl.createEl('code', {text: '[[@foo]]'})
+			wl.appendText('. With Extended Citations, surrounding parentheses are parsed for pre/post text, e.g. ')
+			wl.createEl('code', {text: '(e.g. [[@foo]] p.3)'})
+			wl.appendText('.')
+			const pd = list.createEl('li')
+			pd.createEl('strong', {text: 'Pandoc: '})
+			pd.appendText('bracketed citations with optional prefix, suffix and several keys, e.g. ')
+			pd.createEl('code', {text: '[@foo, p.149]'})
+			pd.appendText(', ')
+			pd.createEl('code', {text: '[see @foo; @bar, ch. 2]'})
+			pd.appendText(', plus ')
+			pd.createEl('code', {text: '@foo'})
+			pd.appendText(' in running text. Wiki-link citations are still converted in this mode, so mixed notes are fine.')
+		}))
+		.addDropdown(dropdown => dropdown
+			.addOptions(syntaxOptions)
+			.setValue(this.plugin.settings.citationSyntax)
+			.onChange(async (value:citationSyntax) => {
+				this.plugin.settings.citationSyntax = value;
+				await this.plugin.saveSettings();
+			}));
+
 		const options : Record<citeCommand,string>  = {
-			"basic":"Basic - \\cite{@foo}",
-			"autocite":"Autocite - \\autocite{@foo}",
-			"parencite":"Paren Cite - \\parencite{@foo}",
-            "extended":"Extended Citations - commands below"
+			"basic":"Basic - \\cite{foo}",
+			"autocite":"Autocite - \\autocite{foo}",
+			"parencite":"Paren Cite - \\parencite{foo}",
+            "extended":"Extended Citations - templates below"
 		}
 		new Setting(containerEl)
 		.setName('Citation Command')
-		.setDesc('What command to use for citations?')
+		.setDesc(createFragment((f) => {
+			f.appendText('What latex command to use for citations? Applies to both citation syntaxes. With pandoc syntax, prefix and suffix become optional arguments (')
+			f.createEl('code', {text: '\\autocite[see][p.3]{foo}'})
+			f.appendText('), several keys are combined (')
+			f.createEl('code', {text: '\\autocite{foo,bar}'})
+			f.appendText(', or ')
+			f.createEl('code', {text: '\\autocites[p.3]{foo}{bar}'})
+			f.appendText(' when they carry prefixes or suffixes), and ')
+			f.createEl('code', {text: '@foo'})
+			f.appendText(' in text becomes ')
+			f.createEl('code', {text: '\\textcite{foo}'})
+			f.appendText('. Plain \\cite has no multi-key or in-text forms, so Basic falls back to separate \\cite commands.')
+		}))
 		.addDropdown(dropdown => dropdown
 			.addOptions(options)
 			.setValue(this.plugin.settings.citeCommand)
@@ -142,28 +191,17 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 			}));	
 
-  /*
-		new Setting(containerEl)
-		.setName('Extended Citation parsing')
-		.setDesc('Tries to do some clever parsing of text for complex citations. Overrides citation type above')
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.extendedCitations)
-			.onChange(async (value) => {
-				this.plugin.settings.extendedCitations = value;
-				await this.plugin.saveSettings();
-			}));
-            */
- 
 		const textFields : Record<string,TextComponent> = {}
 		const citationSet = new Setting(containerEl)
 			.setName('Extended Citation Templates')
-			.setDesc('Templates for new citation technique; they make available {{id}}, {{pre}}, {{post}} tags')
+			.setDesc('Templates used by Extended Citations; they make available #id, #pre and #post tags. Pick a preset here, or edit the individual templates below.')
 			.addDropdown(dropdown => {
 				for( const k in citationSets ) { dropdown.addOption(k,k)}
 				dropdown
 				.setValue("Default")
 				.onChange(async (value:string) => {
-					const templs = citationSets[value]
+					// Copy, so that editing a field afterwards doesn't change the preset itself
+					const templs = Object.assign({}, citationSets[value])
 					this.plugin.settings.citationTemplates = templs;
 					for( const k in templs) {
 						textFields[k].setValue( templs[k as citationType] )

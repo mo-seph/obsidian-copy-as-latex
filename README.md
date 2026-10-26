@@ -67,7 +67,7 @@ Text features:
 
 Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
-- [X] citations - currently looks at internal links starting with an `@`, and transforms into `\cite{...}` (or `\autocite{}` depending on settings)
+- [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
 - [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
 - [X] And turns block ids into `\label{}` elements
 - [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
@@ -79,19 +79,50 @@ Complex features:
 Make sure your latex file includes the `soul` and `listings` packages, and off you go.
 
 ## Citations
-Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. To find an accomodation between Obsidian and Latex, the Extended Citation Parsing section parses parentheses to get information surrounding refs. `here is a (e.g. [[@example]] p.22)` would give a citation with `e.g.` as the `pre` part and `p.22` as the `post` part. There are then a series of templates depending on which of these are present: `bare` means neither, `pre`,`post`,`surrounded` is one or the other or both, and `paren` is for when pre and post are there but both blank, e.g. `([[@ref]])`. This means that different points can be set up, for e.g. `\citep` versus `\citet`, e.g.:
+Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. There are two parts to the setup: the **Citation syntax** setting says how citations are written in your notes (wiki links or pandoc), and the **Citation Command** setting says what LaTeX to produce (`\cite`, `\autocite`, `\parencite`, or the extended templates described below).
+
+### Wiki-link citations: `[[@citekey]]`
+The default. Any internal link starting with `@` is a citation. With the `Extended Citations` command, the text around the link is parsed for parentheses to get information surrounding refs: `here is a (e.g. [[@example]] p.22)` would give a citation with `e.g.` as the `pre` part and `p.22` as the `post` part. There are then a series of templates depending on which of these are present: `bare` means neither, `pre`,`post`,`surrounded` is one or the other or both, and `paren` is for when pre and post are there but both blank, e.g. `([[@ref]])`.
+
+### Pandoc citations: `[@citekey, p.3; @other]`
+Set *Citation syntax* to **Pandoc** to write citations the way [pandoc](https://pandoc.org/MANUAL.html#citation-syntax) and plugins like Pandoc Reference List expect them: one or more `@citekey`s inside square brackets, separated by semicolons, with optional text before and after each key. Wiki-link citations are still converted in this mode, so notes that mix the two are fine.
+
+For example, with the `Autocite` command, `[@harding1991WhoseScience, p.149]` becomes `\autocite[p.149]{harding1991WhoseScience}` and `[@cave2020WhitenessAI; @katz2020ArtificialWhiteness]` becomes `\autocite{cave2020WhitenessAI,katz2020ArtificialWhiteness}`.
+
+The full set of forms, and what each Citation Command does with them (Paren Cite is the same as Autocite with `\parencite`):
+
+| Markdown | Basic | Autocite | Extended template used |
+|---|---|---|---|
+| `[@foo]` | `\cite{foo}` | `\autocite{foo}` | `bare` |
+| `[@foo, p.3]` | `\cite[p.3]{foo}` | `\autocite[p.3]{foo}` | `post` |
+| `[see @foo]` | `\cite[see][]{foo}` | `\autocite[see][]{foo}` | `pre` |
+| `[see @foo, p.3]` | `\cite[see][p.3]{foo}` | `\autocite[see][p.3]{foo}` | `surrounded` |
+| `[@foo; @bar]` | `\cite{foo,bar}` | `\autocite{foo,bar}` | `bare`, with `foo,bar` as the id |
+| `[@foo, p.3; @bar]` | `\cite[p.3]{foo}; \cite{bar}` | `\autocites[p.3]{foo}{bar}` | one template per key, joined with `; ` |
+| `@foo says` | `\cite{foo} says` | `\textcite{foo} says` | `intext` |
+| `@foo [p.3] says` | `\cite[p.3]{foo} says` | `\textcite[p.3]{foo} says` | `intext` (put `#post` in the template to show the locator) |
+| `[-@foo]` | `\cite{foo}` | `\autocite*{foo}` | `bare` |
+
+Details:
+- Keys follow pandoc's rules: they start with a letter, digit or `_`, may contain `:.#$%&-+?<>~/` as long as each one is followed by another letter or digit (so `[@doe:2020].` gives the key `doe:2020`), and `@{anything at all}` works for odd keys. An `@` straight after a word character, as in an email address, is left alone.
+- A bracket is only a citation if every semicolon-separated part contains an `@key`; otherwise it is left as text.
+- Text before and after the key (the prefix and suffix) is escaped for LaTeX like any other text, so `[@foo, ch. 5 & 6]` gives `\autocite[ch. 5 \& 6]{foo}`. The key itself is never escaped.
+- Plain `\cite` has no multi-argument or author-in-text forms, so with the `Basic` command several keys with affixes become separate `\cite` commands and `@foo` becomes `\cite{foo}`. Choose `Extended Citations` with the `Natbib` templates to get `\citep`/`\citet` instead.
+- `Copy Missing Citations` collects pandoc keys as well as wiki-link ones when this syntax is selected.
+
+### Extended citation templates
+With the `Extended Citations` command, each kind of citation is rendered with a template that can use `#id`, `#pre` and `#post`. This means that different points can be set up, for e.g. `\citep` versus `\citet`. The Natbib preset, for example, is:
 
 ```
 "bare" : "\\citep{#id}",
-"surrounded" : "\\cite[#pre][#post]{#id}}",
-"pre" : "\\cite[#pre]{#id}}" ,
-"post" : "\\cite[#post]{#id}}",
-"paren" : "\\citet{#id}"	
+"surrounded" : "\\cite[#pre][#post]{#id}",
+"pre" : "\\cite[#pre][]{#id}" ,
+"post" : "\\cite[#post]{#id}",
+"paren" : "\\citet{#id}",
+"intext" : "\\citet{#id}"
 ```
 
-
-
-This may change, but it currently grabs `pre` and `post` - the bits before and after the link, without spaces. These is then templated into the right form for `\cite` or `\autocite` with a user definable template, where `{{[pre]}}` means "use the value for `pre`, and if it is there, keep the square brackets; if it is not, get rid of them - so with `\autocite{{(pre)}}{{[post]}}{{{id}}}` and ` (e.g. [[@author2021Paper]] p.22)`, it produces `\autocite(e.g.)[p.22]{author2021Paper}`
+There are presets (Default, Autocite, Natbib, Brute-Force) in the settings, and each template can be edited individually. `paren` is only produced by wiki-link citations, and `intext` only by pandoc ones.
 
 ## Copy Citations
 This is a command that lets you copy the citations that are missing from a bibliography (e.g. I've just added some text to my Overleaf, need to update the `.bib` file too)
@@ -102,7 +133,22 @@ To use it:
 
 # Development
 
+## Developing locally
+Build with `npm run build`, or `npm run dev` to rebuild on every change. Obsidian loads plugins from `<vault>/.obsidian/plugins/<plugin id>/`, so the simplest live setup is to symlink this folder in and reload the plugin (or Obsidian) after each build:
+
+```
+ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-latex
+```
+
+`main.js` (the build) and `data.json` (your settings, once Obsidian has saved them) are gitignored.
+
 ## Changelog
+
+### 1.10
+- Pandoc citation syntax (`[@key, p.3; @other]`, `@key` in text) as an alternative to `[[@key]]` wiki links - see the Citation syntax setting
+- `intext` citation template for author-in-text citations
+- Default extended templates fixed (stray closing braces)
+
 
 ### 1.9
 - Citation templates for various styles
