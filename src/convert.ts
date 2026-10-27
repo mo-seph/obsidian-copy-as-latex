@@ -291,11 +291,15 @@ const pandocInTextMatch = new RegExp(`^(-?)@${pandocKey}`)
 // A locator in brackets straight after an in-text key: `@key [p. 33]`
 const pandocLocatorMatch = /^\s*\[([^\[\]]*)\]/
 
-// Parse the content of a [...] group as semicolon-separated citation items.
+// Items are separated by ';' as pandoc specifies, but people often write [@a, @b],
+// so a comma directly before the next key counts as a separator too
+const pandocItemSeparator = /;|,(?=\s*-?@)/
+
+// Parse the content of a [...] group as separated citation items.
 // Returns null unless every item contains a key - otherwise the bracket is not a citation.
 function parsePandocItems(content:string) : PandocCitationItem[] | null {
 	const items : PandocCitationItem[] = []
-	for( const part of content.split(";") ) {
+	for( const part of content.split(pandocItemSeparator) ) {
 		const m = pandocItemMatch.exec(part)
 		if( !m ) return null
 		items.push({

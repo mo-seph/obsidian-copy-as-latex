@@ -106,7 +106,7 @@ The full set of forms, and what each Citation Command does with them (Paren Cite
 
 Details:
 - Keys follow pandoc's rules: they start with a letter, digit or `_`, may contain `:.#$%&-+?<>~/` as long as each one is followed by another letter or digit (so `[@doe:2020].` gives the key `doe:2020`), and `@{anything at all}` works for odd keys. An `@` straight after a word character, as in an email address, is left alone.
-- A bracket is only a citation if every semicolon-separated part contains an `@key`; otherwise it is left as text.
+- Keys are separated by `;` as in pandoc, and a comma directly before the next `@` also works (`[@foo, @bar]`, or `[@foo, p.3, @bar]`). A bracket is only a citation if every part contains an `@key`; otherwise it is left as text.
 - Text before and after the key (the prefix and suffix) is escaped for LaTeX like any other text, so `[@foo, ch. 5 & 6]` gives `\autocite[ch. 5 \& 6]{foo}`. The key itself is never escaped.
 - Plain `\cite` has no multi-argument or author-in-text forms, so with the `Basic` command several keys with affixes become separate `\cite` commands and `@foo` becomes `\cite{foo}`. Choose `Extended Citations` with the `Natbib` templates to get `\citep`/`\citet` instead.
 - `Copy Missing Citations` collects pandoc keys as well as wiki-link ones when this syntax is selected.
@@ -276,6 +276,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - Cross-references: `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{}`, headings get `sec:` labels (optional), block ids after tables and figures go inside the float, and `^id` no longer swallows the text before it
 - Block quotes become `quote` environments
 - External links with their own text become `\href{url}{text}` rather than `\url{url}`
+- Pandoc citations accept `[@foo, @bar]` as well as `[@foo; @bar]` (issue #21)
 - Wiki-link aliases use Obsidian's `|`, so citation keys with colons (`[[@doe:2020]]`) work and `[[Note|alias]]` shows the alias
 
 
