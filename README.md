@@ -59,7 +59,7 @@ Text features:
 - [X] headings
 - [X] bold
 - [X] italic
-- [X] External links
+- [X] External links - `\url{...}` for a bare link, `\href{url}{text}` when the link has its own text
 - [X] Automatic external links (except Obsidian is more generous than the GFM parser)
 - [ ] Footnotes (It only makes sense to use inline foonotes, which Obsidian supports, but not the GFM parser)
 - [ ] Highlight (again, not in GFM)
@@ -77,7 +77,7 @@ Complex features:
 
 
 ## How to use
-Make sure your latex file includes the `soul`, `listings`, `booktabs` and `graphicx` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
+Make sure your latex file includes the `soul`, `listings`, `booktabs`, `graphicx` and `hyperref` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
 
 ## Citations
 Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. There are two parts to the setup: the **Citation syntax** setting says how citations are written in your notes (wiki links or pandoc), and the **Citation Command** setting says what LaTeX to produce (`\cite`, `\autocite`, `\parencite`, or the extended templates described below).
@@ -275,6 +275,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - Figures: `![[embeds]]` and markdown images become `figure` floats, with the alias/alt text as the caption
 - Cross-references: `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{}`, headings get `sec:` labels (optional), block ids after tables and figures go inside the float, and `^id` no longer swallows the text before it
 - Block quotes become `quote` environments
+- External links with their own text become `\href{url}{text}` rather than `\url{url}`
 - Wiki-link aliases use Obsidian's `|`, so citation keys with colons (`[[@doe:2020]]`) work and `[[Note|alias]]` shows the alias
 
 

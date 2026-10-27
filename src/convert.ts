@@ -411,9 +411,12 @@ function pandocTemplatedCitation(c:PandocCitation,settings:ConversionSettings) :
 }
 
 
+// External links: \url{url} for a bare link, \href{url}{text} when the link has its own text
 const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const l = a as Link
-	return "\\url{" + l.url + "}"
+	const text = plainText(a)
+	if( text.length === 0 || text === l.url ) return "\\url{" + l.url + "}"
+	return "\\href{" + l.url + "}{" + wrapper("","")(a,settings,indent) + "}"
 }
 
 const codeBlock = (a:Node,settings:ConversionSettings,indent:number=0) => {
