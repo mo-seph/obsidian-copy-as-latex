@@ -67,7 +67,8 @@ Text features:
 - [X] Block quotes - `\begin{quote}` ... `\end{quote}`
 
 Complex features:
-- [X] code blocks - carries through the language into a def for the `listings` package.
+- [X] code blocks - carries through the language into a def for the `listings` package; tagged blocks can have their own templates (see Code blocks and admonitions below)
+- [X] admonitions - ```` ```ad-theorem ```` and friends, through the same templates
 - [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
 - [X] Cross-references - `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{...}`; block ids (`^id`) and headings become `\label{...}` (see Cross-references below)
 - [X] tables - markdown tables become booktabs `tabular` or `tabulary` tables, optionally in a `table` float (see Tables below)
@@ -155,6 +156,28 @@ Two settings control this:
 - *Wrap tables in a float*: on by default. Wraps the table in a `table` float with `\centering` and an empty `\caption{}` above it for you to fill in (add a `\label{}` after the caption if you need one). Turn it off to get a bare `tabular`.
 
 Column widths, multi-line cells and merged cells can't be expressed in markdown, so those are left for tweaking in LaTeX.
+
+## Code blocks and admonitions
+Fenced code blocks become `lstlisting` environments (or `minted`, with that setting on) carrying the language tag. Blocks with other tags can have their own output through the *Code block templates* settings: each entry pairs a tag (the word after the backticks) with free-text LaTeX, where
+- `#1` is the block's content converted from markdown, so emphasis, maths, lists and citations inside it come through;
+- `#raw` is the content exactly as typed, for code;
+- `#title` is the title of an Obsidian [admonition](https://github.com/javalent/admonitions) (tags starting `ad-`), whose leading `title:`, `collapse:`, `icon:` and `color:` lines are removed from the content. `[#title]` produces the optional argument only when there is a title, so `\begin{theorem}[#title]` doesn't leave an empty bracket.
+
+The default set has one template, `ad-theorem` to `\begin{theorem}[#title]` / `#1` / `\end{theorem}`:
+
+````markdown
+```ad-theorem
+title: Pythagoras
+For a right triangle, $a^2 + b^2 = c^2$, as shown in [@euclid].
+```
+````
+```latex
+\begin{theorem}[Pythagoras]
+For a right triangle, $a^2 + b^2 = c^2$, as shown in \cite{euclid}.
+\end{theorem}
+```
+
+Tags are matched ignoring case, and a template for a language tag overrides the listing, e.g. `python` with `\begin{minted}[linenos]{python}` / `#raw` / `\end{minted}`. Callouts (`> [!note]`) are not covered: they come through as block quotes.
 
 ## Figures
 Images become `figure` floats, so include `\usepackage{graphicx}`. Both Obsidian embeds and standard markdown images work, and the alias or alt text becomes the caption (an alias that is just a size, like `![[plot.png|300]]`, is ignored). The path is copied as written, so set `\graphicspath` or edit it in LaTeX.
@@ -277,6 +300,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - Block quotes become `quote` environments
 - External links with their own text become `\href{url}{text}` rather than `\url{url}`
 - Pandoc citations accept `[@foo, @bar]` as well as `[@foo; @bar]` (issue #21)
+- Code block templates: fenced blocks with a chosen tag (e.g. ```` ```ad-theorem ````) render through a user template with `#1`, `#raw` and `#title`
 - Wiki-link aliases use Obsidian's `|`, so citation keys with colons (`[[@doe:2020]]`) work and `[[Note|alias]]` shows the alias
 
 

@@ -72,6 +72,9 @@ export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	tableEnvironment: 'tabular',
 	tableFloat: true,
 	labelSections: true,
+	codeBlockTemplates: [
+		{ tag: "ad-theorem", template: "\\begin{theorem}[#title]\n#1\n\\end{theorem}" },
+	],
 	bibtexFile: "",
 	citationTemplates: Object.assign({}, citationSets["Default"]),
 }
@@ -128,6 +131,62 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
                 this.plugin.settings.copyWhole = value;
                 await this.plugin.saveSettings();
             }));
+
+		new Setting(containerEl).setName('Code block templates').setHeading();
+
+		new Setting(containerEl)
+		.setName('Templates for tagged code blocks')
+		.setDesc(createFragment((f) => {
+			f.appendText('Fenced code blocks whose tag (the word after the backticks, e.g. ')
+			f.createEl('code', {text: 'ad-theorem'})
+			f.appendText(') matches one of these are rendered with the template instead of a listing. In the template, ')
+			f.createEl('code', {text: '#1'})
+			f.appendText(' is the content converted from markdown, and ')
+			f.createEl('code', {text: '#raw'})
+			f.appendText(' is the content exactly as typed. For Obsidian admonitions (tags starting ')
+			f.createEl('code', {text: 'ad-'})
+			f.appendText(') the title/collapse/icon/color lines are removed from the content and the title is available as ')
+			f.createEl('code', {text: '#title'})
+			f.appendText('; write ')
+			f.createEl('code', {text: '[#title]'})
+			f.appendText(' to get an optional argument only when there is a title.')
+		}))
+		.addButton(button => button
+			.setButtonText('Add template')
+			.setCta()
+			.onClick(async () => {
+				this.plugin.settings.codeBlockTemplates.push({tag: "", template: ""});
+				await this.plugin.saveSettings();
+				this.display();
+			}));
+		this.plugin.settings.codeBlockTemplates.forEach((entry, index) => {
+			new Setting(containerEl)
+			.addText(text => text
+				.setPlaceholder('tag, e.g. ad-theorem')
+				.setValue(entry.tag)
+				.onChange(async (value) => {
+					entry.tag = value.trim();
+					await this.plugin.saveSettings();
+				}))
+			.addTextArea(text => {
+				text.setPlaceholder('\\begin{theorem}[#title]\n#1\n\\end{theorem}')
+				.setValue(entry.template)
+				.onChange(async (value) => {
+					entry.template = value;
+					await this.plugin.saveSettings();
+				});
+				text.inputEl.rows = 4;
+				text.inputEl.cols = 45;
+			})
+			.addExtraButton(button => button
+				.setIcon('trash')
+				.setTooltip('Remove this template')
+				.onClick(async () => {
+					this.plugin.settings.codeBlockTemplates.splice(index, 1);
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+		});
 
 		new Setting(containerEl).setName('Tables').setHeading();
 

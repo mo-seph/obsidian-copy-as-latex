@@ -1,19 +1,11 @@
 import { App, Editor, Modal, Notice, Plugin, PluginSettingTab, Setting, EditorPosition, FileSystemAdapter, TextComponent } from 'obsidian';
 import {fromMarkdown} from 'mdast-util-from-markdown'
 
-// @ts-ignore - not sure how to build a proper typescript def yet
-import { syntax } from 'micromark-extension-wiki-link'
-// @ts-ignore - not sure how to build a proper typescript def yet
-import * as wikiLink from 'mdast-util-wiki-link'
-import {gfm} from 'micromark-extension-gfm'
-import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
-import {math} from 'micromark-extension-math'
-import {mathFromMarkdown, mathToMarkdown} from 'mdast-util-math'
 
 
 import { Code, Heading, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { Literal } from 'mdast';
-import {ASTtoString,ConversionSettings, preprocessAST,citeCommand, findAll, findCitations, citationType} from './convert'
+import {ASTtoString,ConversionSettings, preprocessAST,citeCommand, findAll, findCitations, citationType, remarkSetup as parserSetup} from './convert'
 import * as path from 'path';
 import { BibtexConverter } from './bibtex';
 import CopyAsLatexSettingTab, { CopyAsLatexPluginSettings, DEFAULT_SETTINGS } from './settings';
@@ -21,10 +13,7 @@ import CopyAsLatexSettingTab, { CopyAsLatexPluginSettings, DEFAULT_SETTINGS } fr
 export default class CopyAsLatexPlugin extends Plugin {
 	settings: CopyAsLatexPluginSettings; 
 	bibtex: BibtexConverter = new BibtexConverter()
-	remarkSetup = {
-		extensions: [syntax({aliasDivider: "|"}),gfm(),math()], // Obsidian aliases are [[target|alias]]
-		mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown(),mathFromMarkdown()]
-	}
+	remarkSetup = parserSetup
 
 	async onload() {
 		console.log('loading Copy as Latex');
@@ -126,6 +115,8 @@ export default class CopyAsLatexPlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		// Templates added in later versions (e.g. intext) get their defaults if the saved settings lack them
 		this.settings.citationTemplates = Object.assign({}, DEFAULT_SETTINGS.citationTemplates, this.settings.citationTemplates);
+		// Copy the template list so that editing it never changes the defaults
+		this.settings.codeBlockTemplates = (this.settings.codeBlockTemplates || []).map((t) => Object.assign({}, t));
 	}
 
 	async saveSettings() {

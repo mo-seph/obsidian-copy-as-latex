@@ -7,6 +7,8 @@ import { syntax } from 'micromark-extension-wiki-link'
 import * as wikiLink from 'mdast-util-wiki-link'
 import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
+import {math} from 'micromark-extension-math'
+import {mathFromMarkdown} from 'mdast-util-math'
 
 import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
 import { AlignType, Image, Literal, Table } from 'mdast';
@@ -20,6 +22,12 @@ export type citationType = "bare" | "surrounded" | "pre" | "post" | "paren" | "i
 // Which latex environment holds table cells
 export type tableEnvironment = "tabular" | "tabulary"
 
+// A user template for fenced blocks with a particular tag, e.g. ```ad-theorem
+export interface CodeBlockTemplate {
+	tag: string;      // the word after the backticks
+	template: string; // free text; #1 = content converted from markdown, #raw = content as typed, #title = admonition title
+}
+
 export interface ConversionSettings {
 	inlineDelimiter:string;
 	mintedListings: boolean;
@@ -29,9 +37,23 @@ export interface ConversionSettings {
 	tableEnvironment: tableEnvironment;
 	tableFloat: boolean;
 	labelSections: boolean;
+	codeBlockTemplates: CodeBlockTemplate[];
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
+
+// How markdown is parsed: wiki links with Obsidian's | alias divider, GFM (tables etc.) and maths
+export const remarkSetup = {
+	extensions: [syntax({aliasDivider: "|"}),gfm(),math()],
+	mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown(),mathFromMarkdown()]
+}
+
+// Convert a piece of markdown to latex: parse, tidy up the tree, render
+export function markdownToLatex(text:string,settings:ConversionSettings) : string {
+	const ast:Node = fromMarkdown(text,remarkSetup)
+	preprocessAST(ast,settings)
+	return ASTtoString(ast,settings)
+}
 
 // A block id at the end of a line, e.g. `some text ^my-id`; the `^` must follow whitespace or start the text
 const labelMatch = /(^|\s)\^([a-zA-Z0-9_:-]+)\s*$/
@@ -425,16 +447,51 @@ const externalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 
 const codeBlock = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const cd = a as Code
+	const lang = (cd.lang || "").trim()
+	// Blocks with a tag the user has a template for, e.g. ```ad-theorem
+	const custom = lang.length > 0 && (settings.codeBlockTemplates || [])
+		.find((t) => t.tag.trim().toLowerCase() === lang.toLowerCase())
+	if( custom ) return codeBlockFromTemplate(custom.template,cd,settings)
+	// Untagged blocks get no language option (minted needs some lexer, so it gets `text`)
 	if( settings.mintedListings ) {
-		return `\\begin{minted}{${cd.lang}}
+		return `\\begin{minted}{${lang || "text"}}
 ${cd.value}
 \\end{minted}
 `
 	}
-	return `\\begin{lstlisting}[language=${cd.lang}]
+	return `\\begin{lstlisting}${lang ? `[language=${lang}]` : ""}
 ${cd.value}
 \\end{lstlisting}
 `
+}
+
+// Leading metadata lines of an Obsidian admonition (```ad-note), e.g. `title: Pythagoras`
+const admonitionMeta = /^(title|collapse|icon|color)\s*:\s*(.*)$/
+
+// Render a fenced block through a user template. #1 is the content converted from markdown,
+// #raw the content as typed, and for admonitions #title is the title ([#title] only appears when there is one).
+function codeBlockFromTemplate(template:string,cd:Code,settings:ConversionSettings) : string {
+	let raw = cd.value || ""
+	let title = ""
+	if( (cd.lang || "").startsWith("ad-") ) {
+		const lines = raw.split("\n")
+		while( lines.length > 0 ) {
+			const m = admonitionMeta.exec(lines[0])
+			if( !m ) break
+			if( m[1] === "title" ) title = m[2].trim()
+			lines.shift()
+		}
+		raw = lines.join("\n")
+	}
+	const converted = markdownToLatex(raw,settings).trim()
+	const escapedTitle = escapeLatex(title)
+	// Function replacers, so that `$` characters in the content aren't treated as replacement patterns
+	return template.replace(/\n*$/,"")
+		.replace(/\[#title\]/g, () => title ? `[${escapedTitle}]` : "")
+		.replace(/#title/g, () => escapedTitle)
+		.replace(/#raw/g, () => raw)
+		.replace(/#1/g, () => converted)
+		+ "\n"
 }
 
 const inlineCode = (a:Node,settings:ConversionSettings,indent:number=0) => {
