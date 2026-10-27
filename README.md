@@ -64,20 +64,20 @@ Text features:
 - [ ] Footnotes (It only makes sense to use inline foonotes, which Obsidian supports, but not the GFM parser)
 - [ ] Highlight (again, not in GFM)
 - [X] Special characters: `& % $ # _ { } ~ ^ \` 
+- [X] Block quotes - `\begin{quote}` ... `\end{quote}`
 
 Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package.
 - [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
-- [X] Cross-references - looks at internal links starting with `^`, transforms into `\ref{...}`
-- [X] And turns block ids into `\label{}` elements
+- [X] Cross-references - `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{...}`; block ids (`^id`) and headings become `\label{...}` (see Cross-references below)
 - [X] tables - markdown tables become booktabs `tabular` or `tabulary` tables, optionally in a `table` float (see Tables below)
 - [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
-- [ ] images - it should be possible to turn image links into something that connects to the filename
-- [ ] captions
+- [X] images - `![[file.png|caption]]` and `![caption](file.png)` become `figure` floats with `\includegraphics` (see Figures below)
+- [~] captions - figure captions come from the image's alias/alt text; table captions are left empty to fill in
 
 
 ## How to use
-Make sure your latex file includes the `soul`, `listings` and `booktabs` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
+Make sure your latex file includes the `soul`, `listings`, `booktabs` and `graphicx` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
 
 ## Citations
 Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. There are two parts to the setup: the **Citation syntax** setting says how citations are written in your notes (wiki links or pandoc), and the **Citation Command** setting says what LaTeX to produce (`\cite`, `\autocite`, `\parencite`, or the extended templates described below).
@@ -156,6 +156,97 @@ Two settings control this:
 
 Column widths, multi-line cells and merged cells can't be expressed in markdown, so those are left for tweaking in LaTeX.
 
+## Figures
+Images become `figure` floats, so include `\usepackage{graphicx}`. Both Obsidian embeds and standard markdown images work, and the alias or alt text becomes the caption (an alias that is just a size, like `![[plot.png|300]]`, is ignored). The path is copied as written, so set `\graphicspath` or edit it in LaTeX.
+
+```markdown
+![[plot.png|Accuracy against training time]]
+```
+```latex
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plot.png}
+\caption{Accuracy against training time}
+\end{figure}
+```
+Embeds of notes rather than images (`![[Other note]]`) are left as they are.
+
+## Cross-references
+Labels come from Obsidian block ids (`^id` at the end of a block) and from headings; references come from Obsidian's own link forms, so everything stays clickable in Obsidian. Every reference becomes `\ref{...}`, so write the word "Table" or "Section" yourself (or search-and-replace `\ref` with `\cref` or `\autoref` on the LaTeX side).
+
+| Markdown | LaTeX |
+|---|---|
+| `## Related Work` | `\subsection{Related Work}\label{sec:related-work}` |
+| `## Related Work ^my-id` | `\subsection{Related Work}\label{my-id}` |
+| `[[#Related Work]]` or `[[Paper#Related Work]]` | `\ref{sec:related-work}` |
+| `[[#^tbl-results]]`, `[[Paper#^tbl-results]]` or `[[^tbl-results]]` | `\ref{tbl-results}` |
+| `Table [[#^tbl-results|1]]` | `Table \ref{tbl-results}` (the alias is dropped, so put the number there to read well in Obsidian) |
+| `Some text ^para-id` | `Some text\label{para-id}` |
+
+Section labels are made from the first two words of the heading, lower-cased and joined with `-`, so `## Related Work in Robotics` gives `sec:related-work`; the same rule is applied to `[[#Heading]]` links, so they always match. If two headings share their first two words, give one of them an explicit `^id`. Turn off *Label sections* in the settings if you don't want every heading labelled; explicit `^id` labels and `[[#^id]]` references work regardless.
+
+### Sections
+```markdown
+## Related Work
+
+The method is described in [[#Method]].
+
+## Method
+```
+```latex
+\subsection{Related Work}\label{sec:related-work}
+
+The method is described in \ref{sec:method}.
+
+\subsection{Method}\label{sec:method}
+```
+
+### Tables
+Put the block id on its own line after the table (Obsidian wants a blank line in between; the id directly on the next line works too). The label goes inside the float, after the caption, which is where LaTeX needs it.
+```markdown
+| Model | Score |
+|-------|------:|
+| Ours  |  0.91 |
+
+^tbl-results
+
+Results are in Table [[#^tbl-results|1]].
+```
+```latex
+\begin{table}[htbp]
+\centering
+\caption{}
+\label{tbl-results}
+\begin{tabular}{lr}
+\toprule
+Model & Score \\
+\midrule
+Ours & 0.91 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Results are in Table \ref{tbl-results}.
+```
+
+### Figures
+The block id goes at the end of the embed's line, as for any single-line block (its own paragraph after the image works too).
+```markdown
+![[architecture.png|The system architecture]] ^fig-arch
+
+The pipeline is shown in Figure [[#^fig-arch|2]].
+```
+```latex
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{architecture.png}
+\caption{The system architecture}
+\label{fig-arch}
+\end{figure}
+
+The pipeline is shown in Figure \ref{fig-arch}.
+```
+
 ## Copy Citations
 This is a command that lets you copy the citations that are missing from a bibliography (e.g. I've just added some text to my Overleaf, need to update the `.bib` file too)
 To use it:
@@ -181,6 +272,10 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - `intext` citation template for author-in-text citations
 - Default extended templates fixed (stray closing braces)
 - Tables: markdown tables become booktabs tables (`tabular` or `tabulary`), optionally wrapped in a `table` float
+- Figures: `![[embeds]]` and markdown images become `figure` floats, with the alias/alt text as the caption
+- Cross-references: `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{}`, headings get `sec:` labels (optional), block ids after tables and figures go inside the float, and `^id` no longer swallows the text before it
+- Block quotes become `quote` environments
+- Wiki-link aliases use Obsidian's `|`, so citation keys with colons (`[[@doe:2020]]`) work and `[[Note|alias]]` shows the alias
 
 
 ### 1.9

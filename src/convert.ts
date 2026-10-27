@@ -9,7 +9,7 @@ import {gfm} from 'micromark-extension-gfm'
 import {gfmFromMarkdown, gfmToMarkdown} from 'mdast-util-gfm'
 
 import { Code, Heading, InlineCode, Link, List, Node, Parent } from 'mdast-util-from-markdown/lib';
-import { AlignType, Literal, Table } from 'mdast';
+import { AlignType, Image, Literal, Table } from 'mdast';
 
 export type citeCommand = "basic" | "autocite" | "parencite" | "extended"
 // How citations are written in the markdown source:
@@ -28,11 +28,13 @@ export interface ConversionSettings {
 	citationTemplates:Record<citationType,string>;
 	tableEnvironment: tableEnvironment;
 	tableFloat: boolean;
+	labelSections: boolean;
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
 
-const labelMatch = /\^([a-zA-Z0-9-_:]*)\s*$/
+// A block id at the end of a line, e.g. `some text ^my-id`; the `^` must follow whitespace or start the text
+const labelMatch = /(^|\s)\^([a-zA-Z0-9_:-]+)\s*$/
 /* Match: 
  * - some stuff
  * '(' followed by any amount of stuff that is not '(', to get everything inside the last paren
@@ -57,6 +59,8 @@ export function ASTtoString(input:Node,settings:ConversionSettings,indent:number
 		'table': table,
 		'tableRow': tableRow,
 		'tableCell': wrapper("",""),
+		'blockquote': blockquote,
+		'image': figure,
 		'listItem': (a:Node) => {return "\t".repeat(indent) + "\\item " + wrapper("","")(a,settings,indent) },
 		'heading': heading,
 		'wikiLink': internalLink,
@@ -77,18 +81,22 @@ export function ASTtoString(input:Node,settings:ConversionSettings,indent:number
 
 const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const v = (a as Literal).value
-
-	const lm = labelMatch.exec(v)
-	if( lm && lm.length > 0 ) return `\\label{${lm[1]}}`
 	if( !v ) return ""
-	// Pandoc citations live inside ordinary text nodes, so pull them out before escaping
-	if( a.type === "text" && settings.citationSyntax === "pandoc" ) {
+	// A trailing block id (`some text ^id`) becomes a label after the text
+	const lm = labelMatch.exec(v)
+	if( lm ) return textToLatex(v.substring(0,lm.index),a.type,settings) + `\\label{${lm[2]}}`
+	return textToLatex(v,a.type,settings)
+};
+
+// Escape a run of text, pulling out pandoc citations first if that syntax is on
+function textToLatex(v:string,nodeType:string,settings:ConversionSettings) : string {
+	if( nodeType === "text" && settings.citationSyntax === "pandoc" ) {
 		return parsePandocCitations(v)
 			.map((seg) => typeof seg === "string" ? escapeLatex(seg) : pandocCitation(seg,settings))
 			.join("")
 	}
 	return escapeLatex(v)
-};
+}
 
 function escapeLatex(input:string) : string {
 	var v = input
@@ -113,7 +121,25 @@ const heading = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	var sec = "section"
 	if( h.depth == 2 ) sec = "subsection"
 	if( h.depth == 3 ) sec = "subsubsection"
-	return "\\" + sec + "{" + ASTtoString((a as Parent).children[0],settings) + "}\n"
+	// An explicit `## Heading ^id` label wins; otherwise sections can be labelled from their text,
+	// which is what [[#Heading]] links refer to
+	const explicit = (a as any).label
+	const slug = slugify(plainText(a))
+	const label = explicit ? explicit : (settings.labelSections && slug) ? "sec:" + slug : null
+	return "\\" + sec + "{" + wrapper("","")(a,settings) + "}" + (label ? `\\label{${label}}` : "") + "\n"
+}
+
+// Turn heading text into a short label: its first two words, lower-cased, so
+// "Related Work in Robotics" -> "related-work". Used for both \label and [[#Heading]] references.
+export function slugify(text:string) : string {
+	const words = text.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 0)
+	return words.slice(0,2).join("-")
+}
+
+// The plain text of a node and its children
+function plainText(n:Node) : string {
+	if( (n as any).children ) return (n as Parent).children.map(plainText).join("")
+	return (n as Literal).value || ""
 }
 
 const list = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -145,9 +171,28 @@ const table = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const lines = [begin, "\\toprule", header]
 	if( body.length > 0 ) lines.push("\\midrule", ...body)
 	lines.push("\\bottomrule", `\\end{${env}}`)
-	if( !settings.tableFloat ) return lines.join("\n") + "\n"
+	const label = (a as any).label ? `\\label{${(a as any).label}}` : null
+	if( !settings.tableFloat ) return lines.join("\n") + (label ? "\n" + label : "") + "\n"
 	// The caption goes above the table, as is conventional, and is left empty to fill in
-	return ["\\begin{table}[htbp]", "\\centering", "\\caption{}", ...lines, "\\end{table}"].join("\n") + "\n"
+	return ["\\begin{table}[htbp]", "\\centering", "\\caption{}", ...(label ? [label] : []), ...lines, "\\end{table}"].join("\n") + "\n"
+}
+
+// Images (![caption](file.png) or Obsidian's ![[file.png|caption]]) become figure floats
+const figure = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	const img = a as Image
+	const lines = [
+		"\\begin{figure}[htbp]",
+		"\\centering",
+		`\\includegraphics[width=\\linewidth]{${img.url}}`,
+		`\\caption{${escapeLatex(img.alt || "")}}`,
+	]
+	if( (a as any).label ) lines.push(`\\label{${(a as any).label}}`)
+	lines.push("\\end{figure}")
+	return lines.join("\n") + "\n"
+}
+
+const blockquote = (a:Node,settings:ConversionSettings,indent:number=0) => {
+	return "\\begin{quote}\n" + wrapper("\n","")(a,settings,indent) + "\\end{quote}\n"
 }
 
 const tableRow = (a:Node,settings:ConversionSettings,indent:number=0) => {
@@ -166,8 +211,15 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 			else if(settings.citeCommand == "parencite") return "\\parencite{" + url.substring(1) + "}" 
 		}
 	}
-	if(url.startsWith("^") ) { return "\\ref{" + url.substring(1) + "}" }
-	return url 
+	// Block references: [[^id]], [[#^id]] or [[Note#^id]] become \ref{id}
+	const hash = url.indexOf("#")
+	const target = hash >= 0 ? url.substring(hash+1) : url
+	if( target.startsWith("^") ) { return "\\ref{" + target.substring(1) + "}" }
+	// Heading references: [[#Heading]] or [[Note#Heading]] refer to the section's slug label
+	if( hash >= 0 && slugify(target).length > 0 ) { return "\\ref{sec:" + slugify(target) + "}" }
+	// Any other link: the text Obsidian would show for it
+	const alias = h.data && h.data.alias
+	return escapeLatex(alias || url)
 }
 
 //For internal links that start with '@'
@@ -429,19 +481,114 @@ export function findCitations(ast:Node,settings?:ConversionSettings):Set<string>
 	return keys
 }
 
-export function preprocessAST(input:any) {
+/*
+ * Tidy up the AST before conversion:
+ * - Obsidian image embeds (![[file.png|caption]]) arrive as plain text, so turn them into image nodes
+ * - block ids (^id) after tables, figures and headings are attached to those nodes as labels
+ * - with Extended Citations, the text around [[@citations]] is parsed for parentheses
+ */
+export function preprocessAST(input:any,settings?:ConversionSettings) {
 	// instanceof was being funny - should be input instanceof Parent
 	if( (input as any).children )  {
-		const children = (input as Parent).children
-		children.forEach( (e,i) => {
-			const v = [null,e,null]
-			if(i > 0 ) v[0] = children[i-1]
-			if(i < children.length - 1 ) v[2] = children[i+1]
-			modifyAST(v)
-		})
-		children.forEach(c => preprocessAST(c))
+		expandEmbeds(input as Parent)
+		;(input as Parent).children.forEach((c:any) => { if( c.children ) expandEmbeds(c) })
+		hoistLabels(input as Parent)
+		if( !settings || settings.citeCommand === "extended" ) {
+			const children = (input as Parent).children
+			children.forEach( (e,i) => {
+				const v = [null,e,null]
+				if(i > 0 ) v[0] = children[i-1]
+				if(i < children.length - 1 ) v[2] = children[i+1]
+				modifyAST(v)
+			})
+		}
+		(input as Parent).children.forEach(c => preprocessAST(c,settings))
 	}
 
+}
+
+// Obsidian image embeds: ![[file.png]] or ![[file.png|caption]] (the wiki-link parser leaves these as text)
+const embedMatch = /!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g
+const imageFile = /\.(png|jpe?g|gif|svg|pdf|webp|bmp|tiff?)$/i
+
+function expandEmbeds(parent:Parent) {
+	const out:any[] = []
+	let changed = false
+	for( const child of parent.children as any[] ) {
+		if( child.type !== "text" || child.value.indexOf("![[") < 0 ) { out.push(child); continue }
+		const v:string = child.value
+		let last = 0
+		for( const m of v.matchAll(embedMatch) ) {
+			if( !imageFile.test(m[1].trim()) ) continue
+			changed = true
+			if( m.index > last ) out.push({type:"text", value: v.substring(last,m.index)})
+			const alias = (m[2] || "").trim()
+			// Obsidian uses the alias for a display size (|300 or |300x200), which is not a caption
+			out.push({type:"image", url: m[1].trim(), alt: /^\d+(x\d+)?$/.test(alias) ? "" : alias, title: null})
+			last = m.index + m[0].length
+		}
+		if( last < v.length ) out.push({type:"text", value: v.substring(last)})
+	}
+	if( changed ) parent.children = out
+}
+
+// A text node that is nothing but a block id
+const idOnly = /^\s*\^([a-zA-Z0-9_:-]+)\s*$/
+const isLabelParagraph = (n:any) => n && n.type === "paragraph" && n.children.length === 1
+	&& n.children[0].type === "text" && idOnly.test(n.children[0].value)
+
+function hoistLabels(parent:Parent) {
+	const children = parent.children as any[]
+	let i = 0
+	while( i < children.length ) {
+		const node = children[i]
+		const next = children[i+1]
+		// A block id written as a last one-cell row of a table (no blank line before it)
+		if( node.type === "table" && node.children.length > 1 ) {
+			const cells = node.children[node.children.length-1].children
+			const first = cells[0]
+			if( first && first.children.length === 1 && first.children[0].type === "text"
+				&& idOnly.test(first.children[0].value)
+				&& cells.slice(1).every((c:any) => c.children.length === 0) ) {
+				node.label = idOnly.exec(first.children[0].value)[1]
+				node.children.pop()
+			}
+		}
+		// `## Heading ^id`
+		if( node.type === "heading" && node.children.length > 0 ) {
+			const last = node.children[node.children.length-1]
+			const m = last.type === "text" ? labelMatch.exec(last.value) : null
+			if( m ) { node.label = m[2]; last.value = last.value.substring(0,m.index) }
+		}
+		// A block id in its own paragraph after a table
+		if( node.type === "table" && isLabelParagraph(next) ) {
+			node.label = idOnly.exec(next.children[0].value)[1]
+			children.splice(i+1,1)
+		}
+		if( node.type === "paragraph" ) {
+			const kids = node.children
+			// `![[fig.png]] ^id`: the image and its block id are the whole paragraph
+			if( kids.length === 2 && kids[0].type === "image" && kids[1].type === "text" && idOnly.test(kids[1].value) ) {
+				kids[0].label = idOnly.exec(kids[1].value)[1]
+				kids.pop()
+			}
+			// A paragraph holding just an image: a block id in the next paragraph labels it,
+			// and the figure then stands on its own rather than inside a paragraph
+			if( kids.length === 1 && kids[0].type === "image" ) {
+				if( isLabelParagraph(next) ) {
+					kids[0].label = idOnly.exec(next.children[0].value)[1]
+					children.splice(i+1,1)
+				}
+				children[i] = kids[0]
+			}
+		}
+		// A block id straight after an inline image: ![[fig.png]] ^id
+		if( node.type === "image" && next && next.type === "text" && idOnly.test(next.value) ) {
+			node.label = idOnly.exec(next.value)[1]
+			children.splice(i+1,1)
+		}
+		i++
+	}
 }
 
 

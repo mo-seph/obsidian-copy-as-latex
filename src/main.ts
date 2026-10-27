@@ -22,7 +22,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 	settings: CopyAsLatexPluginSettings; 
 	bibtex: BibtexConverter = new BibtexConverter()
 	remarkSetup = {
-		extensions: [syntax(),gfm(),math()],
+		extensions: [syntax({aliasDivider: "|"}),gfm(),math()], // Obsidian aliases are [[target|alias]]
 		mdastExtensions: [wikiLink.fromMarkdown(),gfmFromMarkdown(),mathFromMarkdown()]
 	}
 
@@ -48,7 +48,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 		if( this.settings.logOutput ) {console.log(text); }
 		const ast:Node = fromMarkdown(text, this.remarkSetup);
 		if( this.settings.logOutput ) {console.log(ast);}
-		if( this.settings.citeCommand === "extended" ) preprocessAST(ast)
+		preprocessAST(ast,this.settings)
 		if( this.settings.logOutput ) {console.log("New AST:",ast);}
 		const result = ASTtoString(ast,this.settings)
 		if( this.settings.logOutput ) {console.log(result);}
