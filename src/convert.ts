@@ -42,7 +42,6 @@ export interface ConversionSettings {
 	citationTemplates:Record<citationType,string>;
 	tableEnvironment: tableEnvironment;
 	tableFloat: boolean;
-	labelSections: boolean;
 	codeBlockTemplates: CodeBlockTemplate[];
 	namedCitations: NamedCitation[];
 }
@@ -150,19 +149,9 @@ const heading = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	var sec = "section"
 	if( h.depth == 2 ) sec = "subsection"
 	if( h.depth == 3 ) sec = "subsubsection"
-	// An explicit `## Heading ^id` label wins; otherwise sections can be labelled from their text,
-	// which is what [[#Heading]] links refer to
-	const explicit = (a as any).label
-	const slug = slugify(plainText(a))
-	const label = explicit ? explicit : (settings.labelSections && slug) ? "sec:" + slug : null
-	return "\\" + sec + "{" + wrapper("","")(a,settings) + "}" + (label ? `\\label{${label}}` : "") + "\n"
-}
-
-// Turn heading text into a short label: its first two words, lower-cased, so
-// "Related Work in Robotics" -> "related-work". Used for both \label and [[#Heading]] references.
-export function slugify(text:string) : string {
-	const words = text.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 0)
-	return words.slice(0,2).join("-")
+	// Labelled only by a block id: `## Heading ^id`, or `^id` on the line below. The label goes on its own line.
+	const label = (a as any).label
+	return "\\" + sec + "{" + wrapper("","")(a,settings) + "}\n" + (label ? `\\label{${label}}\n` : "")
 }
 
 // The plain text of a node and its children
@@ -252,8 +241,6 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const hash = url.indexOf("#")
 	const target = hash >= 0 ? url.substring(hash+1) : url
 	if( target.startsWith("^") ) { return "\\ref{" + target.substring(1) + "}" }
-	// Heading references: [[#Heading]] or [[Note#Heading]] refer to the section's slug label
-	if( hash >= 0 && slugify(target).length > 0 ) { return "\\ref{sec:" + slugify(target) + "}" }
 	// Any other link: the text Obsidian would show for it
 	const alias = h.data && h.data.alias
 	return escapeLatex(alias || url)
@@ -643,6 +630,8 @@ function expandEmbeds(parent:Parent) {
 
 // A text node that is nothing but a block id
 const idOnly = /^\s*\^([a-zA-Z0-9_:-]+)\s*$/
+// A block id alone on the first line of a paragraph
+const headingIdLine = /^\s*\^([a-zA-Z0-9_:-]+)[ \t]*(?:\n|$)/
 const isLabelParagraph = (n:any) => n && n.type === "paragraph" && n.children.length === 1
 	&& n.children[0].type === "text" && idOnly.test(n.children[0].value)
 
@@ -668,6 +657,18 @@ function hoistLabels(parent:Parent) {
 			const last = node.children[node.children.length-1]
 			const m = last.type === "text" ? labelMatch.exec(last.value) : null
 			if( m ) { node.label = m[2]; last.value = last.value.substring(0,m.index) }
+		}
+		// `^id` on the line under a heading: in its own paragraph, or running straight into the next one
+		if( node.type === "heading" && !node.label && next && next.type === "paragraph" ) {
+			const kids = next.children
+			const m = kids[0] && kids[0].type === "text" ? headingIdLine.exec(kids[0].value) : null
+			if( m ) {
+				node.label = m[1]
+				kids[0].value = kids[0].value.substring(m[0].length)
+				if( kids[0].value.length === 0 ) kids.shift()
+				if( kids[0] && kids[0].type === "break" ) kids.shift()
+				if( kids.length === 0 ) children.splice(i+1,1)
+			}
 		}
 		// A block id in its own paragraph after a table
 		if( node.type === "table" && isLabelParagraph(next) ) {

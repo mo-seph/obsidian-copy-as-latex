@@ -71,7 +71,7 @@ Complex features:
 - [X] admonitions - ```` ```ad-theorem ```` and friends, through the same templates
 - [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
 - [X] named citations - placeholder keys like `[@tocite, something about trees]` become a template of your choice, e.g. `\todo{Cite something about trees}`
-- [X] Cross-references - `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{...}`; block ids (`^id`) and headings become `\label{...}` (see Cross-references below)
+- [X] Cross-references - `[[#^id]]` and `[[Note#^id]]` links become `\ref{...}`; block ids (`^id`), including ids on headings, become `\label{...}` (see Cross-references below)
 - [X] tables - markdown tables become booktabs `tabular` or `tabulary` tables, optionally in a `table` float (see Tables below)
 - [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
 - [X] images - `![[file.png|caption]]` and `![caption](file.png)` become `figure` floats with `\includegraphics` (see Figures below)
@@ -207,33 +207,36 @@ Images become `figure` floats, so include `\usepackage{graphicx}`. Both Obsidian
 Embeds of notes rather than images (`![[Other note]]`) are left as they are.
 
 ## Cross-references
-Labels come from Obsidian block ids (`^id` at the end of a block) and from headings; references come from Obsidian's own link forms, so everything stays clickable in Obsidian. Every reference becomes `\ref{...}`, so write the word "Table" or "Section" yourself (or search-and-replace `\ref` with `\cref` or `\autoref` on the LaTeX side).
+Labels come from Obsidian block ids (`^id` at the end of a block), and references come from Obsidian's own links to them, so everything stays clickable in Obsidian. Every reference becomes `\ref{...}`, so write the word "Table" or "Section" yourself (or search-and-replace `\ref` with `\cref` or `\autoref` on the LaTeX side).
 
 | Markdown | LaTeX |
 |---|---|
-| `## Related Work` | `\subsection{Related Work}\label{sec:related-work}` |
-| `## Related Work ^my-id` | `\subsection{Related Work}\label{my-id}` |
-| `[[#Related Work]]` or `[[Paper#Related Work]]` | `\ref{sec:related-work}` |
+| `## Related Work ^sec-related`, or `^sec-related` on the line below the heading, followed by a blank line | `\subsection{Related Work}` with `\label{sec-related}` on the next line |
 | `[[#^tbl-results]]`, `[[Paper#^tbl-results]]` or `[[^tbl-results]]` | `\ref{tbl-results}` |
 | `Table [[#^tbl-results|1]]` | `Table \ref{tbl-results}` (the alias is dropped, so put the number there to read well in Obsidian) |
 | `Some text ^para-id` | `Some text\label{para-id}` |
 
-Section labels are made from the first two words of the heading, lower-cased and joined with `-`, so `## Related Work in Robotics` gives `sec:related-work`; the same rule is applied to `[[#Heading]]` links, so they always match. If two headings share their first two words, give one of them an explicit `^id`. Turn off *Label sections* in the settings if you don't want every heading labelled; explicit `^id` labels and `[[#^id]]` references work regardless.
+Headings are only labelled when you give them an id; links to a heading by name (`[[#Related Work]]`) are left as text.
 
 ### Sections
+Put the id at the end of the heading, or on the line below it followed by a blank line. Obsidian needs that blank line: without it, a `[[#^id]]` link to the heading is shown as a link but doesn't go anywhere. The converter accepts either layout and puts the label on the line straight after the heading.
 ```markdown
 ## Related Work
+^sec-related
 
-The method is described in [[#Method]].
+The method is described in [[#^sec-method]].
 
 ## Method
+^sec-method
 ```
 ```latex
-\subsection{Related Work}\label{sec:related-work}
+\subsection{Related Work}
+\label{sec-related}
 
-The method is described in \ref{sec:method}.
+The method is described in \ref{sec-method}.
 
-\subsection{Method}\label{sec:method}
+\subsection{Method}
+\label{sec-method}
 ```
 
 ### Tables
@@ -308,7 +311,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - Default extended templates fixed (stray closing braces)
 - Tables: markdown tables become booktabs tables (`tabular` or `tabulary`), optionally wrapped in a `table` float
 - Figures: `![[embeds]]` and markdown images become `figure` floats, with the alias/alt text as the caption
-- Cross-references: `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{}`, headings get `sec:` labels (optional), block ids after tables and figures go inside the float, and `^id` no longer swallows the text before it
+- Cross-references: `[[#^id]]` and `[[Note#^id]]` links become `\ref{}`, headings take an id from the end of the heading or the line below, block ids after tables and figures go inside the float, and `^id` no longer swallows the text before it
 - Block quotes become `quote` environments
 - External links with their own text become `\href{url}{text}` rather than `\url{url}`
 - Pandoc citations accept `[@foo, @bar]` as well as `[@foo; @bar]` (issue #21)

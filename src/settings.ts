@@ -71,7 +71,6 @@ export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	citationSyntax: 'wikilink',
 	tableEnvironment: 'tabular',
 	tableFloat: true,
-	labelSections: true,
 	codeBlockTemplates: [
 		{ tag: "ad-theorem", template: "\\begin{theorem}[#title]\n#1\n\\end{theorem}" },
 	],
@@ -228,32 +227,6 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
 			.setValue(this.plugin.settings.tableFloat)
 			.onChange(async (value) => {
 				this.plugin.settings.tableFloat = value;
-				await this.plugin.saveSettings();
-			}));
-
-		new Setting(containerEl).setName('Cross-references').setHeading();
-
-		new Setting(containerEl)
-		.setName('Label sections')
-		.setDesc(createFragment((f) => {
-			f.appendText('Give every heading a label made from the first two words of its text, so that links to headings become references: ')
-			f.createEl('code', {text: '## Related Work'})
-			f.appendText(' becomes ')
-			f.createEl('code', {text: '\\section{Related Work}\\label{sec:related-work}'})
-			f.appendText(' and ')
-			f.createEl('code', {text: '[[#Related Work]]'})
-			f.appendText(' becomes ')
-			f.createEl('code', {text: '\\ref{sec:related-work}'})
-			f.appendText('. Block ids (')
-			f.createEl('code', {text: '^id'})
-			f.appendText(') always become labels, and ')
-			f.createEl('code', {text: '[[#^id]]'})
-			f.appendText(' links always become references.')
-		}))
-		.addToggle(toggle => toggle
-			.setValue(this.plugin.settings.labelSections)
-			.onChange(async (value) => {
-				this.plugin.settings.labelSections = value;
 				await this.plugin.saveSettings();
 			}));
 
