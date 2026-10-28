@@ -75,6 +75,9 @@ export const DEFAULT_SETTINGS: CopyAsLatexPluginSettings = {
 	codeBlockTemplates: [
 		{ tag: "ad-theorem", template: "\\begin{theorem}[#title]\n#1\n\\end{theorem}" },
 	],
+	namedCitations: [
+		{ key: "tocite", template: "\\todo{Cite #1}" },
+	],
 	bibtexFile: "",
 	citationTemplates: Object.assign({}, citationSets["Default"]),
 }
@@ -352,6 +355,55 @@ export default class CopyAsLatexSettingTab extends PluginSettingTab {
 			});	
 		}
 	
+		new Setting(containerEl)
+		.setName('Named citations')
+		.setDesc(createFragment((f) => {
+			f.appendText('Placeholder keys that become a template instead of a citation, e.g. for references you still need to find. ')
+			f.createEl('code', {text: '[@tocite, something about trees]'})
+			f.appendText(' fills ')
+			f.createEl('code', {text: '#1'})
+			f.appendText(' with the text after the comma, so the template ')
+			f.createEl('code', {text: '\\todo{Cite #1}'})
+			f.appendText(' gives ')
+			f.createEl('code', {text: '\\todo{Cite something about trees}'})
+			f.appendText('. With wiki links, write ')
+			f.createEl('code', {text: '[[@tocite|something about trees]]'})
+			f.appendText('. Copy Missing Citations skips these keys.')
+		}))
+		.addButton(button => button
+			.setButtonText('Add named citation')
+			.setCta()
+			.onClick(async () => {
+				this.plugin.settings.namedCitations.push({key: "", template: ""});
+				await this.plugin.saveSettings();
+				this.display();
+			}));
+		this.plugin.settings.namedCitations.forEach((entry, index) => {
+			new Setting(containerEl)
+			.addText(text => text
+				.setPlaceholder('key, e.g. tocite')
+				.setValue(entry.key)
+				.onChange(async (value) => {
+					entry.key = value.trim().replace(/^@/, "");
+					await this.plugin.saveSettings();
+				}))
+			.addText(text => text
+				.setPlaceholder('\\todo{Cite #1}')
+				.setValue(entry.template)
+				.onChange(async (value) => {
+					entry.template = value;
+					await this.plugin.saveSettings();
+				}))
+			.addExtraButton(button => button
+				.setIcon('trash')
+				.setTooltip('Remove this named citation')
+				.onClick(async () => {
+					this.plugin.settings.namedCitations.splice(index, 1);
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+		});
+
 		new Setting(containerEl)
 		.setName('BibTex file Copy Citations')
 		.setDesc('! Set a bibtex file here relative to Vault root, and then you can copy citations from it if they are missing in a target bibliography on the clipboard')

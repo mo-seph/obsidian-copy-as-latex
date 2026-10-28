@@ -28,6 +28,12 @@ export interface CodeBlockTemplate {
 	template: string; // free text; #1 = content converted from markdown, #raw = content as typed, #title = admonition title
 }
 
+// A user template for a placeholder citation key, e.g. [@tocite, something about trees] => \todo{Cite something about trees}
+export interface NamedCitation {
+	key: string;      // the citation key, with or without its @
+	template: string; // free text; #1 = the text after the comma
+}
+
 export interface ConversionSettings {
 	inlineDelimiter:string;
 	mintedListings: boolean;
@@ -38,6 +44,7 @@ export interface ConversionSettings {
 	tableFloat: boolean;
 	labelSections: boolean;
 	codeBlockTemplates: CodeBlockTemplate[];
+	namedCitations: NamedCitation[];
 }
 // Conversions go from a Node with a certain amount of indentation to a string
 type Convert = (a:Node,settings:ConversionSettings,indent:number) => string
@@ -113,7 +120,7 @@ const defaultC : Convert = (a:Node,settings:ConversionSettings,indent:number=0) 
 // Escape a run of text, pulling out pandoc citations first if that syntax is on
 function textToLatex(v:string,nodeType:string,settings:ConversionSettings) : string {
 	if( nodeType === "text" && settings.citationSyntax === "pandoc" ) {
-		return parsePandocCitations(v)
+		return parsePandocCitations(v, (k) => namedCitation(k,settings) !== null)
 			.map((seg) => typeof seg === "string" ? escapeLatex(seg) : pandocCitation(seg,settings))
 			.join("")
 	}
@@ -224,6 +231,14 @@ const internalLink = (a:Node,settings:ConversionSettings,indent:number=0) => {
 	const h = a as wikiLink
 	const url:string = h.value
 	if(url.startsWith("@") ) { 
+		// Named citations: [[@tocite|something about trees]], or the text after it in parentheses
+		const named = namedCitation(url.substring(1),settings)
+		if( named !== null ) {
+			// The parser copies the target into the alias when there is none
+			const alias = h.data && h.data.alias !== url ? h.data.alias : ""
+			const text = alias || (h as any).post || ""
+			return fillNamedCitation(named, escapeLatex(text))
+		}
 		if( settings.citeCommand === "extended" ) {
 			return extendedCitation(h,settings);
 		}
@@ -283,6 +298,17 @@ function fillTemplate(template:string,id:string,pre:string|null,post:string|null
 		.replace(/#post/g,post || "")
 }
 
+// The template for a named citation key such as @tocite, or null if the key is an ordinary citation
+function namedCitation(key:string,settings:ConversionSettings) : string | null {
+	const found = (settings.namedCitations || []).find((n) => (n.key || "").trim().replace(/^@/,"") === key)
+	return found ? found.template : null
+}
+
+// Put the text that goes with a named citation into its template
+function fillNamedCitation(template:string,text:string) : string {
+	return (template || "").replace(/#1/g, () => text)
+}
+
 /*
  * Pandoc-style citations, e.g. `[@key, p.149]`, `[see @key1; @key2, ch. 2]` or `@key` in running text.
  * See https://pandoc.org/MANUAL.html#citation-syntax
@@ -319,10 +345,13 @@ const pandocItemSeparator = /;|,(?=\s*-?@)/
 
 // Parse the content of a [...] group as separated citation items.
 // Returns null unless every item contains a key - otherwise the bracket is not a citation.
-function parsePandocItems(content:string) : PandocCitationItem[] | null {
+// The text after a named citation (e.g. [@tocite, trees; forests]) is free text, so a ';' there doesn't end it.
+function parsePandocItems(content:string,isNamed:(key:string)=>boolean = () => false) : PandocCitationItem[] | null {
 	const items : PandocCitationItem[] = []
 	for( const part of content.split(pandocItemSeparator) ) {
 		const m = pandocItemMatch.exec(part)
+		const prev = items[items.length-1]
+		if( !m && prev && isNamed(prev.key) ) { prev.suffix = (prev.suffix + ";" + part).trim(); continue }
 		if( !m ) return null
 		items.push({
 			prefix: (m[1] + m[2]).trim(),
@@ -334,8 +363,8 @@ function parsePandocItems(content:string) : PandocCitationItem[] | null {
 	return items
 }
 
-// Split a piece of text into literal strings and pandoc citations
-export function parsePandocCitations(text:string) : PandocSegment[] {
+// Split a piece of text into literal strings and pandoc citations; isNamed says which keys are named citations
+export function parsePandocCitations(text:string,isNamed:(key:string)=>boolean = () => false) : PandocSegment[] {
 	const segments : PandocSegment[] = []
 	let literal = ""
 	const flush = () => { if( literal.length > 0 ) { segments.push(literal); literal = "" } }
@@ -347,7 +376,7 @@ export function parsePandocCitations(text:string) : PandocSegment[] {
 		if( ch === "[" ) {
 			const close = text.indexOf("]",i+1)
 			const content = close >= 0 ? text.substring(i+1,close) : null
-			const items = ( content !== null && content.indexOf("[") < 0 ) ? parsePandocItems(content) : null
+			const items = ( content !== null && content.indexOf("[") < 0 ) ? parsePandocItems(content,isNamed) : null
 			if( items ) {
 				flush()
 				segments.push({items, inText:false})
@@ -363,7 +392,7 @@ export function parsePandocCitations(text:string) : PandocSegment[] {
 				let suffix = ""
 				const loc = pandocLocatorMatch.exec(text.substring(end))
 				// A following bracket is a locator unless it is itself a citation
-				if( loc && !parsePandocItems(loc[1]) ) {
+				if( loc && !parsePandocItems(loc[1],isNamed) ) {
 					suffix = loc[1].trim()
 					end += loc[0].length
 				}
@@ -394,6 +423,20 @@ function citeOptions(item:PandocCitationItem) : string {
 
 // Turn a parsed pandoc citation into latex, following the Citation Command setting
 const pandocCitation = (c:PandocCitation,settings:ConversionSettings) : string => {
+	// Named citations use their own template; any real keys in the same group are cited as usual around them
+	if( c.items.some((i) => namedCitation(i.key,settings) !== null) ) {
+		const pieces : string[] = []
+		let run : PandocCitationItem[] = []
+		const flush = () => { if( run.length > 0 ) { pieces.push(pandocCitation({items:run, inText:c.inText},settings)); run = [] } }
+		c.items.forEach((i) => {
+			const named = namedCitation(i.key,settings)
+			if( named === null ) { run.push(i); return }
+			flush()
+			pieces.push(fillNamedCitation(named, escapeLatex(i.suffix)))
+		})
+		flush()
+		return pieces.join(" ")
+	}
 	if( settings.citeCommand === "extended" ) return pandocTemplatedCitation(c,settings)
 	const commands : Record<string,string> = { basic:"cite", autocite:"autocite", parencite:"parencite" }
 	const cmd = commands[settings.citeCommand] || "cite"
@@ -537,11 +580,13 @@ export function findCitations(ast:Node,settings?:ConversionSettings):Set<string>
 	// With pandoc syntax, citations also hide inside ordinary text nodes
 	if( settings && settings.citationSyntax === "pandoc" ) {
 		findAll(ast,(n:Node) => n.type === "text").forEach((n) => {
-			parsePandocCitations((n as Literal).value).forEach((seg) => {
+			parsePandocCitations((n as Literal).value, (k) => namedCitation(k,settings) !== null).forEach((seg) => {
 				if( typeof seg !== "string" ) seg.items.forEach((i) => keys.add(i.key))
 			})
 		})
 	}
+	// Named citations such as @tocite are placeholders, not bibliography entries
+	if( settings ) keys.forEach((k) => { if( namedCitation(k,settings) !== null ) keys.delete(k) })
 	return keys
 }
 

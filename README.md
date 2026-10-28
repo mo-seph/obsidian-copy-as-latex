@@ -70,6 +70,7 @@ Complex features:
 - [X] code blocks - carries through the language into a def for the `listings` package; tagged blocks can have their own templates (see Code blocks and admonitions below)
 - [X] admonitions - ```` ```ad-theorem ```` and friends, through the same templates
 - [X] citations - either internal links starting with an `@` (`[[@key]]`) or pandoc-style `[@key, p.3; @other]`, transformed into `\cite{...}`, `\autocite{...}` or user templates depending on settings (see Citations below)
+- [X] named citations - placeholder keys like `[@tocite, something about trees]` become a template of your choice, e.g. `\todo{Cite something about trees}`
 - [X] Cross-references - `[[#^id]]`, `[[Note#^id]]` and `[[#Heading]]` links become `\ref{...}`; block ids (`^id`) and headings become `\label{...}` (see Cross-references below)
 - [X] tables - markdown tables become booktabs `tabular` or `tabulary` tables, optionally in a `table` float (see Tables below)
 - [~] bibliographies - it would be great to have a way to pull references out of a `.bib` file (experimental)
@@ -78,7 +79,7 @@ Complex features:
 
 
 ## How to use
-Make sure your latex file includes the `soul`, `listings`, `booktabs`, `graphicx` and `hyperref` packages (plus `tabulary` or `minted` if you turn those options on), and off you go.
+Make sure your latex file includes the `soul`, `listings`, `booktabs`, `graphicx` and `hyperref` packages (plus `tabulary` or `minted` if you turn those options on, and `todonotes` for the default named citation), and off you go.
 
 ## Citations
 Citations quickly get complex - see discussion here: https://github.com/mo-seph/obsidian-copy-as-latex/issues/4. There are two parts to the setup: the **Citation syntax** setting says how citations are written in your notes (wiki links or pandoc), and the **Citation Command** setting says what LaTeX to produce (`\cite`, `\autocite`, `\parencite`, or the extended templates described below).
@@ -125,6 +126,17 @@ With the `Extended Citations` command, each kind of citation is rendered with a 
 ```
 
 There are presets (Default, Autocite, Natbib, Brute-Force) in the settings, and each template can be edited individually. `paren` is only produced by wiki-link citations, and `intext` only by pandoc ones.
+
+### Named citations
+Named citations are placeholder keys that turn into a template of your choice instead of a citation, which is handy for marking references you still need to find. Each one is a key and a free-text template, where `#1` is the text written after the comma. The default is `tocite` with the template `\todo{Cite #1}` (from the `todonotes` package):
+
+| Markdown | LaTeX |
+|---|---|
+| `[@tocite, something about trees]` | `\todo{Cite something about trees}` |
+| `[[@tocite\|something about trees]]` (wiki links) | `\todo{Cite something about trees}` |
+| `[@smith2020; @tocite, more on trees]` | `\autocite{smith2020} \todo{Cite more on trees}` |
+
+Add as many as you like under *Named citations* in the settings; for example, the key `tocite` with the template `\tocite{#1}` gives `\tocite{something about trees}` for a command you define yourself. Named citations work with either citation syntax and any Citation Command, real keys in the same brackets are cited as usual, and `Copy Missing Citations` skips them. The text is escaped like any other text, and may contain commas and semicolons.
 
 ## Tables
 Markdown tables are converted to [booktabs](https://ctan.org/pkg/booktabs) tables, so include `\usepackage{booktabs}` in your document. Column alignment comes from the `:---:` markers (unmarked columns are left-aligned), the first row is the header, and cell contents are converted like any other text, so emphasis, inline code, math and citations work inside cells.
@@ -301,6 +313,7 @@ ln -s /path/to/obsidian-copy-as-latex /path/to/vault/.obsidian/plugins/copy-as-l
 - External links with their own text become `\href{url}{text}` rather than `\url{url}`
 - Pandoc citations accept `[@foo, @bar]` as well as `[@foo; @bar]` (issue #21)
 - Code block templates: fenced blocks with a chosen tag (e.g. ```` ```ad-theorem ````) render through a user template with `#1`, `#raw` and `#title`
+- Named citations: placeholder keys such as `[@tocite, something about trees]` render through a user template, e.g. `\todo{Cite #1}`
 - Wiki-link aliases use Obsidian's `|`, so citation keys with colons (`[[@doe:2020]]`) work and `[[Note|alias]]` shows the alias
 
 

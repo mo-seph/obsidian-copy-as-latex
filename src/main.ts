@@ -117,6 +117,7 @@ export default class CopyAsLatexPlugin extends Plugin {
 		this.settings.citationTemplates = Object.assign({}, DEFAULT_SETTINGS.citationTemplates, this.settings.citationTemplates);
 		// Copy the template list so that editing it never changes the defaults
 		this.settings.codeBlockTemplates = (this.settings.codeBlockTemplates || []).map((t) => Object.assign({}, t));
+		this.settings.namedCitations = (this.settings.namedCitations || []).map((t) => Object.assign({}, t));
 	}
 
 	async saveSettings() {
